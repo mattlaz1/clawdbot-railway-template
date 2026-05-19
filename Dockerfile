@@ -33,7 +33,13 @@ RUN set -eux; \
     sed -i -E 's/"openclaw"[[:space:]]*:[[:space:]]*"workspace:[^"]+"/"openclaw": "*"/g' "$f"; \
   done
 
-RUN pnpm install --no-frozen-lockfile
+# Workaround: as of 2026-05-19 npm registry's `express` metadata is missing
+# the "time" field, which pnpm uses for "lowest-direct" resolution mode.
+# Per pnpm's own error message, switching to "highest" sidesteps the
+# missing-metadata check. Lockfile is regenerated next line anyway.
+RUN echo "resolution-mode=highest" > .npmrc.runtime && cat .npmrc.runtime
+RUN cp .npmrc.runtime .npmrc 2>/dev/null || true; cat .npmrc 2>/dev/null || true
+RUN pnpm install --no-frozen-lockfile --config.resolution-mode=highest
 # tsdown OOMs at the default ~1 GB Node heap when building v2026.5.18 (observed 2026-05-19).
 # 8 GB is well under Railway's build memory; keeps headroom for ui:build too.
 RUN NODE_OPTIONS=--max-old-space-size=8192 pnpm build
