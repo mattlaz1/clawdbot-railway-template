@@ -51,10 +51,16 @@ RUN apt-get update \
     tini \
     python3 \
     python3-venv \
+    python3-pip \
   && rm -rf /var/lib/apt/lists/*
 
 # `openclaw update` expects pnpm. Provide it in the runtime image.
 RUN corepack enable && corepack prepare pnpm@10.23.0 --activate
+
+# postgres-mcp — read+write Postgres MCP server (crystaldba/postgres-mcp).
+# Bakes into the image so the gateway can spawn it without network on cold start.
+# Configured via openclaw.json mcpServers.postgres; reads DATABASE_URL at runtime.
+RUN python3 -m pip install --break-system-packages --no-cache-dir postgres-mcp
 
 # Persist user-installed tools by default by targeting the Railway volume.
 # - npm global installs -> /data/npm
