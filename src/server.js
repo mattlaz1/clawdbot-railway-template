@@ -173,9 +173,52 @@ async function waitForGatewayReady(opts = {}) {
   return false;
 }
 
+// Migrate persisted config to the current OpenClaw schema before each cold start.
+// On a Railway redeploy, /openclaw/ is rebuilt from the pinned tag but
+// /data/.clawdbot/openclaw.json persists from whatever version touched it last.
+// Schema drift between versions (e.g. discord.streaming string -> object,
+// per-channel `allow` -> `enabled` between 3.8 -> 5.18) blocks gateway startup.
+// `doctor --fix --non-interactive` applies the safe migrations idempotently.
+// Skip if not configured yet (first-time setup) — doctor needs a real config.
+let doctorRanThisProcess = false;
+async function maybeMigrateConfig() {
+  if (doctorRanThisProcess) return;
+  if (!isConfigured()) return;
+  doctorRanThisProcess = true;
+  console.log("[wrapper] running `openclaw doctor --fix --non-interactive` to migrate config schema...");
+  try {
+    const result = await new Promise((resolve) => {
+      const child = childProcess.spawn(OPENCLAW_NODE, clawArgs(["doctor", "--fix", "--non-interactive"]), {
+        stdio: ["ignore", "pipe", "pipe"],
+        env: {
+          ...process.env,
+          OPENCLAW_STATE_DIR: STATE_DIR,
+          OPENCLAW_WORKSPACE_DIR: WORKSPACE_DIR,
+        },
+      });
+      let out = "";
+      let err = "";
+      child.stdout.on("data", (d) => { out += d.toString(); });
+      child.stderr.on("data", (d) => { err += d.toString(); });
+      child.on("close", (code) => resolve({ code, out, err }));
+      // Hard cap so a hung doctor can't block the gateway forever.
+      setTimeout(() => { try { child.kill("SIGKILL"); } catch {} resolve({ code: -1, out, err: err + "\n[wrapper] doctor timed out after 90s" }); }, 90_000);
+    });
+    if (result.code !== 0) {
+      console.warn(`[wrapper] doctor exited code=${result.code}; continuing anyway. stderr:\n${result.err.slice(-2000)}`);
+    } else {
+      console.log("[wrapper] doctor finished cleanly.");
+    }
+  } catch (err) {
+    console.warn(`[wrapper] doctor failed to spawn: ${String(err)}; continuing.`);
+  }
+}
+
 async function startGateway() {
   if (gatewayProc) return;
   if (!isConfigured()) throw new Error("Gateway cannot start: not configured");
+
+  await maybeMigrateConfig();
 
   fs.mkdirSync(STATE_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });

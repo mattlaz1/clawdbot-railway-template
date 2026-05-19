@@ -22,7 +22,7 @@ WORKDIR /openclaw
 
 # Pin to a known-good ref (tag/branch). Override in Railway template settings if needed.
 # Using a released tag avoids build breakage when `main` temporarily references unpublished packages.
-ARG OPENCLAW_GIT_REF=v2026.3.8
+ARG OPENCLAW_GIT_REF=v2026.5.18
 RUN git clone --depth 1 --branch "${OPENCLAW_GIT_REF}" https://github.com/openclaw/openclaw.git .
 
 # Patch: relax version requirements for packages that may reference unpublished versions.
@@ -34,9 +34,11 @@ RUN set -eux; \
   done
 
 RUN pnpm install --no-frozen-lockfile
-RUN pnpm build
+# tsdown OOMs at the default ~1 GB Node heap when building v2026.5.18 (observed 2026-05-19).
+# 8 GB is well under Railway's build memory; keeps headroom for ui:build too.
+RUN NODE_OPTIONS=--max-old-space-size=8192 pnpm build
 ENV OPENCLAW_PREFER_PNPM=1
-RUN pnpm ui:install && pnpm ui:build
+RUN NODE_OPTIONS=--max-old-space-size=8192 pnpm ui:install && NODE_OPTIONS=--max-old-space-size=8192 pnpm ui:build
 
 
 # Runtime image
