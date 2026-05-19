@@ -33,13 +33,17 @@ RUN set -eux; \
     sed -i -E 's/"openclaw"[[:space:]]*:[[:space:]]*"workspace:[^"]+"/"openclaw": "*"/g' "$f"; \
   done
 
-# Workaround: as of 2026-05-19 npm registry's `express` metadata is missing
-# the "time" field, which pnpm uses for "lowest-direct" resolution mode.
-# Per pnpm's own error message, switching to "highest" sidesteps the
-# missing-metadata check. Lockfile is regenerated next line anyway.
-RUN echo "resolution-mode=highest" > .npmrc.runtime && cat .npmrc.runtime
-RUN cp .npmrc.runtime .npmrc 2>/dev/null || true; cat .npmrc 2>/dev/null || true
-RUN pnpm install --no-frozen-lockfile --config.resolution-mode=highest
+# Workaround: OpenClaw v2026.5.18's pnpm-workspace.yaml sets
+# `minimumReleaseAge: 2880` (48h) for supply-chain hardening. pnpm enforces
+# this by reading the npm registry's `time` field for each package. A handful
+# of packages (express, @google/genai, observed 2026-05-19) have stripped/
+# missing `time` metadata in the registry, which crashes the install with
+# ERR_PNPM_MISSING_TIME. Disabling minimum-release-age for the build lets the
+# install proceed; we're cloning a tagged release so version-pinning is
+# already deterministic via the lockfile.
+RUN sed -i -E 's/^minimumReleaseAge:.*$/minimumReleaseAge: 0/' pnpm-workspace.yaml && \
+    grep -E '^minimumReleaseAge' pnpm-workspace.yaml
+RUN pnpm install --no-frozen-lockfile
 # tsdown OOMs at the default ~1 GB Node heap when building v2026.5.18 (observed 2026-05-19).
 # 8 GB is well under Railway's build memory; keeps headroom for ui:build too.
 RUN NODE_OPTIONS=--max-old-space-size=8192 pnpm build
