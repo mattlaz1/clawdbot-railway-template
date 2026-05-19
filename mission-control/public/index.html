@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkySuite Mission Control</title>
+  <!-- Base href lets us serve from / locally and from /mc/ behind the wrapper.
+       The server rewrites this tag at request time based on the
+       X-Forwarded-Prefix header set by the wrapper proxy. -->
+  <base href="/" id="mc-base">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=20260518-projfix">
+</head>
+<body>
+  <aside class="app-sidebar" id="app-sidebar">
+    <div class="app-sidebar-head">
+      <a href="#" class="app-sidebar-brand" data-view="grid" title="SkySuite Mission Control">
+        <img class="app-sidebar-mark" src="skysuite-logo.png" alt="SkySuite">
+      </a>
+      <button class="app-sidebar-toggle" type="button" title="Collapse sidebar">
+        <span class="app-sidebar-toggle-icon">◀</span>
+      </button>
+    </div>
+    <div class="app-sidebar-inner">
+      <nav class="app-sidebar-nav" id="app-sidebar-nav">
+        <!-- primary nav + db sub-nav rendered here by renderAppSidebar() -->
+      </nav>
+    </div>
+    <div class="app-sidebar-footer">
+      <button id="execute-all-btn" class="btn-primary app-sidebar-action app-sidebar-action--primary" disabled>
+        Execute all
+      </button>
+      <div class="app-sidebar-action-row">
+        <button id="notif-bell" class="btn-ghost app-sidebar-action notif-bell" data-action="toggle-notif-bell" title="Activity feed">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notif-count" style="display:none">0</span>
+        </button>
+        <button class="btn-ghost app-sidebar-action" data-action="view-all-briefings" title="Today's briefings across all agents">
+          <span aria-hidden="true">📝</span>
+          <span class="app-sidebar-action-label">Briefings</span>
+        </button>
+        <button id="refresh-btn" class="btn-ghost app-sidebar-action" title="Refresh data">
+          <span aria-hidden="true">↻</span>
+          <span class="app-sidebar-action-label">Refresh</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <main id="grid-view">
+    <div class="grid-filter-bar" id="grid-filter-bar"></div>
+    <section class="agent-grid" id="agent-grid">
+      <!-- active agent cards rendered here -->
+    </section>
+    <section class="waiting-section" id="waiting-section" style="display:none">
+      <!-- collapsed waiting agents rendered here -->
+    </section>
+  </main>
+
+  <main id="detail-view" hidden>
+    <!-- single-agent detail page rendered here -->
+  </main>
+
+  <main id="inbox-view" hidden>
+    <!-- unified all-tasks inbox rendered here -->
+  </main>
+
+  <main id="history-view" hidden>
+    <!-- unified timeline of cron + execute + decision events -->
+  </main>
+
+  <main id="db-view" hidden>
+    <!-- read-only Postgres browser -->
+  </main>
+
+  <main id="github-view" hidden>
+    <!-- read-only GitHub repo/branch/PR dashboard -->
+  </main>
+
+  <main id="companies-view" hidden>
+    <!-- per-company coverage table: every active CRO deal + CS client -->
+  </main>
+
+  <main id="projects-view" hidden>
+    <!-- CS-as-PM project portfolio: every active analyst/dev project -->
+  </main>
+
+  <main id="reports-view" hidden>
+    <!-- agent daily report feed -->
+    <div id="reports-feed" class="reports-feed"></div>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js?v=20260518-projfix"></script>
+</body>
+</html>

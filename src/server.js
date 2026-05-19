@@ -8,6 +8,8 @@ import express from "express";
 import httpProxy from "http-proxy";
 import * as tar from "tar";
 
+import * as missionControl from "./mission-control-supervisor.js";
+
 // Migrate deprecated CLAWDBOT_* env vars → OPENCLAW_* so existing Railway deployments
 // keep working. Users should update their Railway Variables to use the new names.
 for (const suffix of ["PUBLIC_PORT", "STATE_DIR", "WORKSPACE_DIR", "GATEWAY_TOKEN", "CONFIG_PATH"]) {
@@ -1365,6 +1367,41 @@ proxy.on("proxyReqWs", (_proxyReq, req) => {
   attachGatewayAuthHeader(req);
 });
 
+// --- Mission Control proxy ---
+// MC runs as a child process on 127.0.0.1:MC_PORT (default 3700). We proxy
+// /mc/* to it and strip the /mc prefix so MC sees the bare path. We also
+// inject X-Forwarded-Prefix so MC can rewrite the SPA's <base href>.
+const MC_INTERNAL_HOST = process.env.MC_INTERNAL_HOST || "127.0.0.1";
+const MC_INTERNAL_PORT = Number.parseInt(process.env.MC_PORT ?? "3700", 10);
+const MC_TARGET = `http://${MC_INTERNAL_HOST}:${MC_INTERNAL_PORT}`;
+const mcProxy = httpProxy.createProxyServer({
+  target: MC_TARGET,
+  ws: false, // MC's frontend polls, no WS upgrade today
+  xfwd: true,
+});
+mcProxy.on("error", (err, _req, res) => {
+  console.error("[mc-proxy]", err);
+  try {
+    if (res && typeof res.writeHead === "function" && !res.headersSent) {
+      res.writeHead(502, { "Content-Type": "text/plain" });
+      res.end("Mission Control unavailable\n");
+    }
+  } catch {
+    // ignore
+  }
+});
+mcProxy.on("proxyReq", (proxyReq) => {
+  // MC uses this to rewrite <base href> so SPA assets/fetches resolve under /mc/.
+  proxyReq.setHeader("X-Forwarded-Prefix", "/mc");
+});
+
+app.use("/mc", requireDashboardAuth, (req, res) => {
+  // express strips the /mc mount prefix from req.url, so MC sees / or /api/...
+  mcProxy.web(req, res, { target: MC_TARGET });
+});
+// Bare /mc with no trailing slash → redirect so relative URLs resolve correctly.
+app.get("/mc", (_req, res) => res.redirect(301, "/mc/"));
+
 app.use(requireDashboardAuth, async (req, res) => {
   // If not configured, force users to /setup for any non-setup routes.
   if (!isConfigured() && !req.path.startsWith("/setup")) {
@@ -1457,6 +1494,14 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
       console.error(`[wrapper] gateway failed to start at boot: ${String(err)}`);
     }
   }
+
+  // Start Mission Control as a co-located child process. It binds 127.0.0.1
+  // and is reachable only through the /mc/* proxy above.
+  try {
+    missionControl.start();
+  } catch (err) {
+    console.error(`[wrapper] mission-control failed to start: ${String(err)}`);
+  }
 });
 
 server.on("upgrade", async (req, socket, head) => {
@@ -1485,6 +1530,7 @@ process.on("SIGTERM", () => {
   } catch {
     // ignore
   }
+  try { missionControl.stop(); } catch {}
 
   // Stop accepting new connections; allow in-flight requests to complete briefly.
   try {

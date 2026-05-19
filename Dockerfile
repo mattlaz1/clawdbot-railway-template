@@ -78,6 +78,15 @@ RUN printf '%s\n' '#!/usr/bin/env bash' 'exec node /openclaw/dist/entry.js "$@"'
 
 COPY src ./src
 
+# --- Mission Control ---
+# MC is a co-located Node app started by the wrapper as a child process.
+# It binds 127.0.0.1:3700 inside the container; the wrapper proxies /mc/* to it.
+# MC connects to the OpenClaw gateway via ws://127.0.0.1:18789/ (loopback)
+# which is the whole point of co-location — loopback clients get operator scopes.
+COPY mission-control/package.json mission-control/package-lock.json* ./mission-control/
+RUN cd mission-control && npm install --omit=dev && npm cache clean --force
+COPY mission-control ./mission-control
+
 # The wrapper listens on $PORT.
 # IMPORTANT: Do not set a default PORT here.
 # Railway injects PORT at runtime and routes traffic to that port.

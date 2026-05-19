@@ -1,0 +1,6 @@
+node_modules/
+.env
+backups/
+db/seed/notion-dump/
+db/seed/backfill-*.log
+data/execute-logs/
