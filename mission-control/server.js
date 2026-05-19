@@ -50,7 +50,8 @@ function serveIndex(req, res) {
   const base = getBasePath(req);
   html = html.replace(/<base href="[^"]*"([^>]*)>/, `<base href="${base}"$1>`);
   res.setHeader("Cache-Control", "no-store");
-  res.type("html").send(html);
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(html);
 }
 // Serve the rewritten shell for the root path AND any unknown non-/api path
 // (so deep links like /mc/#/companies still load the SPA shell).
