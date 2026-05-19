@@ -10,8 +10,6 @@ process.on("unhandledRejection", (err) => {
 });
 
 const app = express();
-// Important: on Railway the wrapper occupies $PORT; MC listens on MC_PORT
-// (defaulting to 3700) and is reached only via the wrapper's localhost proxy.
 const PORT = process.env.MC_PORT || process.env.PORT || 3700;
 const IS_RAILWAY = !!process.env.RAILWAY_ENVIRONMENT;
 const MC_DATA_DIR = process.env.MC_DATA_DIR || path.join(__dirname, "data");
@@ -21,8 +19,6 @@ const EXECUTE_LOG_DIR = process.env.MC_EXECUTE_LOG_DIR || path.join(MC_DATA_DIR,
 
 app.use(express.json({ limit: "1mb" }));
 
-// Auth gate — mount before static/routes so the dashboard shell also requires
-// credentials. Webhook routes self-authenticate via HMAC and bypass this.
 const basicAuth = require("./middleware/auth");
 app.use(basicAuth);
 if (basicAuth.enabled) {
@@ -34,9 +30,8 @@ if (basicAuth.enabled) {
 }
 
 // When the wrapper proxies us under /mc, it sets X-Forwarded-Prefix=/mc.
-// We rewrite the <base href> in index.html so all relative URLs in the SPA
-// (assets + fetch("api/...")) resolve to the right place. MC_BASE_PATH env
-// can also force a prefix for local testing.
+// Rewrite the <base href> in index.html so all relative URLs in the SPA
+// (assets + fetch("api/...")) resolve to the right place.
 function getBasePath(req) {
   const prefix = (req.headers["x-forwarded-prefix"] || process.env.MC_BASE_PATH || "").replace(/\/+$/, "");
   return prefix ? `${prefix}/` : "/";
@@ -53,12 +48,10 @@ function serveIndex(req, res) {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(html);
 }
-// Serve the rewritten shell for the root path AND any unknown non-/api path
-// (so deep links like /mc/#/companies still load the SPA shell).
 app.get("/", serveIndex);
 
 app.use(express.static(path.join(__dirname, "public"), {
-  index: false, // don't auto-serve index.html — let serveIndex handle it
+  index: false,
   setHeaders: (res, filePath) => {
     if (filePath.endsWith(".js") || filePath.endsWith(".css") || filePath.endsWith(".html")) {
       res.setHeader("Cache-Control", "no-store");
@@ -66,8 +59,6 @@ app.use(express.static(path.join(__dirname, "public"), {
   },
 }));
 
-// Always ensure the data + execute-log dirs exist. On Railway these point at
-// MC_DATA_DIR (e.g. /data/mc) which lives on the persistent volume.
 fs.mkdirSync(MC_DATA_DIR, { recursive: true });
 fs.mkdirSync(EXECUTE_LOG_DIR, { recursive: true });
 
@@ -1310,8 +1301,6 @@ app.get("/api/execute/:runId/status", async (req, res) => {
   }
 });
 
-// Bind to 127.0.0.1 on Railway so only the wrapper's proxy can reach MC.
-// Locally bind to all interfaces to keep the dev workflow unchanged.
 const BIND_HOST = IS_RAILWAY ? "127.0.0.1" : "0.0.0.0";
 app.listen(PORT, BIND_HOST, () => {
   console.log(`Mission Control running at http://${BIND_HOST}:${PORT}`);

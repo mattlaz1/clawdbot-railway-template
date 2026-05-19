@@ -1,4 +1,4 @@
-// SkySuite Mission Control â€” frontend
+// SkySuite Mission Control — frontend
 const MCP_ICONS = {
   outlook:    { logo: "https://www.google.com/s2/favicons?domain=outlook.live.com&sz=64",     label: "Outlook" },
   calendar:   { logo: "https://www.google.com/s2/favicons?domain=calendar.google.com&sz=64", label: "Calendar" },
@@ -12,14 +12,14 @@ const MCP_ICONS = {
 };
 
 const ACTION_LABELS = {
-  draft_email: "ðŸ“§ Email",
-  notion_task: "ðŸ“‹ Task",
-  notion_update: "ðŸ“‹ Update",
-  linkedin_reply: "ðŸ’¼ LinkedIn",
-  linkedin_invite: "ðŸ’¼ Invite",
-  qb_invoice: "ðŸ’° Invoice",
-  calendar_event: "ðŸ“… Event",
-  research: "ðŸ” Research",
+  draft_email: "📧 Email",
+  notion_task: "📋 Task",
+  notion_update: "📋 Update",
+  linkedin_reply: "💼 LinkedIn",
+  linkedin_invite: "💼 Invite",
+  qb_invoice: "💰 Invoice",
+  calendar_event: "📅 Event",
+  research: "🔍 Research",
 };
 
 Object.assign(ACTION_LABELS, {
@@ -83,7 +83,7 @@ const state = {
   replyOpenProps: new Set(), // proposal ids showing the Reply compose without full expand
   collapsedSections: new Set(), // agent ids whose task list is collapsed
   collapsedReports: new Set(), // agent ids whose inline report section is collapsed (all start collapsed)
-  agentBriefings: {}, // agent_id -> { body, title, generated_at } â€” lazy-loaded cache
+  agentBriefings: {}, // agent_id -> { body, title, generated_at } — lazy-loaded cache
   agentBriefingStatus: {}, // agent_id -> "loading" | "loaded" | "empty" | "error"
   taskDensity: ["comfortable", "compact"].includes(localStorage.getItem("mc_task_density")) ? localStorage.getItem("mc_task_density") : "compact", // "comfortable" | "compact"
   inboxMode: localStorage.getItem("mc_inbox_mode") || "list", // "list" | "kanban"
@@ -93,7 +93,7 @@ const state = {
     if (!raw || raw === "all") return new Set();
     return new Set(raw.split(",").map(s => s.trim()).filter(Boolean));
   })(), // Set<agent_id>; empty = All
-  inboxSearch: "", // live text filter â€” not persisted
+  inboxSearch: "", // live text filter — not persisted
   completedCollapsed: localStorage.getItem("mc_inbox_completed_collapsed") !== "0", // collapsed by default
   dbCompaniesMode: localStorage.getItem("mc_db_companies_mode") || "table", // "table" | "kanban"
   dbContactsMode: localStorage.getItem("mc_db_contacts_mode") || "grouped", // "grouped" | "table"
@@ -102,10 +102,10 @@ const state = {
   dbContactsCollapsed: new Set(JSON.parse(localStorage.getItem("mc_db_contacts_collapsed") || "[]")), // company_ids collapsed in grouped view
   meetingTypeFilter: localStorage.getItem("mc_meeting_type_filter") || "external", // "all" | "external" | "internal"
   covExpanded: new Set(JSON.parse(localStorage.getItem("mc_cov_expanded") || "[]")), // company slugs whose coverage card is expanded
-  covDetailCache: {}, // slug -> { proposals, tasks, fetchedAt } â€” avoids re-fetching on collapse/expand
+  covDetailCache: {}, // slug -> { proposals, tasks, fetchedAt } — avoids re-fetching on collapse/expand
   completedItems: [], // recently-executed items loaded from history endpoint
   gridFilter: ["now", "scheduled", "all"].includes(localStorage.getItem("mc_grid_filter")) ? localStorage.getItem("mc_grid_filter") : "now", // "now" | "scheduled" | "all"
-  // â”€â”€â”€ Notifications â”€â”€
+  // ─── Notifications ──
   notifications: [],                       // unified event list from /api/notifications
   seenEventIds: new Set(JSON.parse(localStorage.getItem("mc_seen_events") || "[]")), // event ids Matt has acknowledged
   lastSeenTs: localStorage.getItem("mc_last_seen_ts") || new Date(Date.now() - 24*3600*1000).toISOString(), // initial window: last 24h
@@ -113,7 +113,7 @@ const state = {
   osNotifPermission: (typeof Notification !== "undefined" ? Notification.permission : "default"),
 };
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers ────────────────────────────────────────────────────
 const $ = (sel) => document.querySelector(sel);
 const escape = (s) =>
   String(s ?? "")
@@ -152,7 +152,7 @@ function formatDueDate(iso) {
 
 function isStale(ts) {
   // Stale if the source timestamp is older than the agent's typical cadence.
-  // We use 36h as the bar â€” any agent (even weekly ones mid-week) should have
+  // We use 36h as the bar — any agent (even weekly ones mid-week) should have
   // something fresh within 36h of their scheduled slot. Prevents false-positive
   // "Stale" on daily agents that ran this morning but whose latest *proposal*
   // was carried forward from a prior run (so proposals.generated_at lags).
@@ -160,7 +160,7 @@ function isStale(ts) {
   return Date.now() - new Date(ts) > 36 * 3600 * 1000;
 }
 
-// Best "when was this agent last fresh" signal â€” prefer actual run completion
+// Best "when was this agent last fresh" signal — prefer actual run completion
 // over proposal generation, because a run that carried proposals forward won't
 // bump generated_at but IS a legitimate freshness event.
 function latestFreshness(agent, propData) {
@@ -176,7 +176,7 @@ function scheduleLabel(agent) {
   return agent && agent.schedule ? agent.schedule : "On demand";
 }
 
-// Skills from /api/agents are plain strings ("Draft emails") â€” not {slash, label}.
+// Skills from /api/agents are plain strings ("Draft emails") — not {slash, label}.
 // Normalize into a consistent object so the popover always renders something
 // useful. The agent's main cron skill (/cro-daily, /cs-daily, etc.) becomes
 // the fallback slash for every skill chip since that's what actually runs.
@@ -189,7 +189,7 @@ function normalizeSkill(s, fallbackSlash) {
 
 // Grid filter: "now" = no due_date or due_date <= today (things to do now).
 // "scheduled" = due_date in the future (parked for later).
-// Future due_date wins â€” even if Matt has commented, a snoozed/future item stays scheduled.
+// Future due_date wins — even if Matt has commented, a snoozed/future item stays scheduled.
 // Only queued items (actively waiting on /execute) override into "now".
 function isNowForGrid(proposal, decision) {
   if (decision?.status === "in_progress") return true;
@@ -211,9 +211,9 @@ function toast(msg) {
   toast._t = setTimeout(() => t.classList.remove("show"), 2400);
 }
 
-// â”€â”€â”€ Minimal markdown renderer (briefings are controlled content, not user input) â”€â”€
+// ─── Minimal markdown renderer (briefings are controlled content, not user input) ──
 // Supports: # / ## / ### headings, bold, italic, inline code, - bullets, 1. numbered,
-// blockquotes, horizontal rules, paragraphs. No links/images by design â€” briefings
+// blockquotes, horizontal rules, paragraphs. No links/images by design — briefings
 // are plain narrative. Escapes HTML first, then applies formatting.
 function renderBriefingMarkdown(md) {
   if (!md) return "";
@@ -285,9 +285,9 @@ function renderBriefingMarkdown(md) {
   return out.join("\n");
 }
 
-// â”€â”€â”€ Briefing modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Briefing modal ────────────────────────────────────────────
 // Renders one or more daily_reports rows in an overlay modal. If `rows` is
-// empty, shows a "no briefing yet" message. The modal is self-contained â€”
+// empty, shows a "no briefing yet" message. The modal is self-contained —
 // click the backdrop, the close button, or press Escape to dismiss.
 function openBriefingModal({ title, rows }) {
   closeBriefingModal(); // idempotent
@@ -298,7 +298,7 @@ function openBriefingModal({ title, rows }) {
     <div class="briefing-modal" role="dialog" aria-modal="true">
       <div class="briefing-modal-head">
         <h2>${escape(title)}</h2>
-        <button class="briefing-close" aria-label="Close" data-action="close-briefing">Ã—</button>
+        <button class="briefing-close" aria-label="Close" data-action="close-briefing">×</button>
       </div>
       <div class="briefing-modal-body">
         ${rows && rows.length
@@ -308,7 +308,7 @@ function openBriefingModal({ title, rows }) {
                 ? `<div class="briefing-agent-head" style="--card-color:${escape(agent.color)};--card-pastel:${escape(agent.pastel)}">
                      <span class="briefing-agent-emoji">${agent.emoji}</span>
                      <span class="briefing-agent-name">${escape(agent.name)}</span>
-                     <span class="briefing-agent-meta">${escape(r.title || "")} Â· ${escape(r.report_date || "")}</span>
+                     <span class="briefing-agent-meta">${escape(r.title || "")} · ${escape(r.report_date || "")}</span>
                    </div>`
                 : `<div class="briefing-agent-head"><span class="briefing-agent-name">${escape(r.agent)}</span><span class="briefing-agent-meta">${escape(r.title || "")}</span></div>`;
               return `<section class="briefing-agent-block">${header}<div class="briefing-markdown">${renderBriefingMarkdown(r.body)}</div></section>`;
@@ -351,7 +351,7 @@ async function showAgentBriefing(agentId) {
     const row = await res.json();
     openBriefingModal({ title, rows: [row] });
   } catch (err) {
-    toast(`Couldn't load briefing â€” ${err.message}`);
+    toast(`Couldn't load briefing — ${err.message}`);
   }
 }
 
@@ -393,9 +393,9 @@ async function showTodaysBriefings() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const rows = await res.json();
     const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-    openBriefingModal({ title: `Today's Briefings Â· ${today}`, rows });
+    openBriefingModal({ title: `Today's Briefings · ${today}`, rows });
   } catch (err) {
-    toast(`Couldn't load briefings â€” ${err.message}`);
+    toast(`Couldn't load briefings — ${err.message}`);
   }
 }
 
@@ -416,7 +416,7 @@ function setGreeting() {
   });
 }
 
-// â”€â”€â”€ Notification engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Notification engine ──────────────────────────────────────────
 function persistSeenEvents() {
   try {
     const arr = Array.from(state.seenEventIds).slice(-500);
@@ -444,7 +444,7 @@ function fireOsNotification(event) {
   if (document.visibilityState === "visible") return;
   try {
     const n = new Notification(event.title || "Mission Control", {
-      body: event.summary || `${agentNameById(event.agent_id)} Â· ${event.type}`,
+      body: event.summary || `${agentNameById(event.agent_id)} · ${event.type}`,
       tag: event.id,
       icon: new URL("favicon.png", document.baseURI).toString(),
       silent: false,
@@ -459,7 +459,7 @@ function fireOsNotification(event) {
 async function requestOsPermission() {
   if (typeof Notification === "undefined") { toast("This browser doesn't support desktop notifications."); return; }
   if (Notification.permission === "granted") { toast("Notifications already enabled."); return; }
-  if (Notification.permission === "denied") { toast("Notifications blocked â€” change in browser settings."); return; }
+  if (Notification.permission === "denied") { toast("Notifications blocked — change in browser settings."); return; }
   const p = await Notification.requestPermission();
   state.osNotifPermission = p;
   if (p === "granted") {
@@ -494,7 +494,7 @@ async function pollNotifications({ silent = false } = {}) {
         toast(label);
         fireOsNotification(e);
       }
-      if (trulyNew.length > 3) toast(`â€¦and ${trulyNew.length - 3} more`);
+      if (trulyNew.length > 3) toast(`…and ${trulyNew.length - 3} more`);
     }
     renderNotifBell();
     render();
@@ -576,7 +576,7 @@ function notifOutsideClickHandler(e) {
   closeNotifPanel();
 }
 
-// â”€â”€â”€ Rendering â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Rendering ──────────────────────────────────────────────────
 function renderPreview(preview, editedBody) {
   if (!preview || typeof preview !== "object") return "";
   const labelMap = {
@@ -639,11 +639,11 @@ function renderThreadMessages(thread) {
         minute: "2-digit",
       });
       const actionLabel =
-        m.action === "refined" ? "â†º refined"
-        : m.action === "executed" ? "âœ“ executed"
+        m.action === "refined" ? "↺ refined"
+        : m.action === "executed" ? "✓ executed"
         : m.action === "question" ? "? question"
-        : m.action === "snoozed" ? "â¸ snoozed"
-        : m.action === "rejected_logged" ? "ðŸ§  logged to brain"
+        : m.action === "snoozed" ? "⏸ snoozed"
+        : m.action === "rejected_logged" ? "🧠 logged to brain"
         : null;
       return `
         <div class="thread-bubble ${escape(m.role)}">
@@ -668,7 +668,7 @@ function renderCompose(propId) {
     <div class="thread-compose">
       <textarea
         class="thread-input"
-        placeholder="Type yes to approve, or tell Claude what to changeâ€¦"
+        placeholder="Type yes to approve, or tell Claude what to change…"
         data-action="thread-draft"
         rows="1"
       >${draftValue}</textarea>
@@ -704,20 +704,20 @@ function renderProposal(agentId, p, decisionRecord, generatedAt) {
   const actionLabel = ACTION_LABELS[p.action_type] || (p.action_type || "").replace(/_/g, " ");
   const isExpanded = state.expandedProps.has(p.id);
   // Reply mode = lightweight compose without expanding the full preview.
-  // Only show when the user explicitly toggled the reply button â€” a stale
+  // Only show when the user explicitly toggled the reply button — a stale
   // localStorage draft must not auto-reopen the inline composer after commit.
   const isReplyOpen =
     !isInProgress && state.replyOpenProps.has(p.id);
   const addedAt = p.added_at || generatedAt;
 
   const statusBadge = isInProgress
-    ? `<span class="status-pill in-progress">â–¶ In Progress</span>`
+    ? `<span class="status-pill in-progress">▶ In Progress</span>`
     : needsMatt
     ? `<span class="status-pill needs-matt"><span class="dot-pulse"></span>Needs review</span>`
     : needsRefinement
-    ? `<span class="status-pill needs-refinement">â†º Refining</span>`
+    ? `<span class="status-pill needs-refinement">↺ Refining</span>`
     : isSnoozed
-    ? `<span class="status-pill snoozed">â¸ Snoozed</span>`
+    ? `<span class="status-pill snoozed">⏸ Snoozed</span>`
     : "";
 
   return `
@@ -739,7 +739,7 @@ function renderProposal(agentId, p, decisionRecord, generatedAt) {
           </div>
         </div>
         ${isInProgress ? `
-          <button class="prop-unstick" data-action="unstick-prop" data-prop-id="${escape(p.id)}" data-agent="${escape(agentId)}" title="Reset: remove from queue (back to To-Do)">â†º Reset</button>
+          <button class="prop-unstick" data-action="unstick-prop" data-prop-id="${escape(p.id)}" data-agent="${escape(agentId)}" title="Reset: remove from queue (back to To-Do)">↺ Reset</button>
         ` : `
           <button class="reply-btn ${isReplyOpen ? "active" : ""}" data-action="toggle-reply" title="Quick reply">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -790,7 +790,7 @@ function renderActiveCard(agent) {
   const stale = isStale(generatedAt);
   const isRunning = !!state.runningExecutes[agent.id];
 
-  // Apply grid filter â€” "now" shows today's tasks, "scheduled" shows future-dated, "all" shows everything
+  // Apply grid filter — "now" shows today's tasks, "scheduled" shows future-dated, "all" shows everything
   const proposals = state.gridFilter === "all"
     ? allProposals
     : state.gridFilter === "scheduled"
@@ -811,7 +811,7 @@ function renderActiveCard(agent) {
   const anyInProg = inProgCount > 0;
   const hasAdhoc = (adhocDrafts.get(agent.id) || "").trim().length > 0;
   const isCronToggled = !!cronToggles.get(agent.id);
-  // Must mirror the global Execute All logic (touched + adhoc + cron) â€” otherwise
+  // Must mirror the global Execute All logic (touched + adhoc + cron) — otherwise
   // the per-card Execute button flickers disabled on initial render until
   // updateCounts() catches up in a setTimeout.
   const actionableCount = touchedCount + (hasAdhoc ? 1 : 0) + (isCronToggled ? 1 : 0);
@@ -825,7 +825,7 @@ function renderActiveCard(agent) {
     })
     .join("");
 
-  // Sort proposals by urgency (priority, then due date ascending) â€” most urgent first.
+  // Sort proposals by urgency (priority, then due date ascending) — most urgent first.
   const sortedProposals = proposals.slice().sort((a, b) => {
     const pa = priorityOrder(a);
     const pb = priorityOrder(b);
@@ -836,7 +836,7 @@ function renderActiveCard(agent) {
   });
   const proposalListHtml = sortedProposals.length
     ? sortedProposals.map((p) => renderProposal(agent.id, p, decisions[p.id], generatedAt)).join("")
-    : `<div class="proposal-empty">No tasks yet Â· next run ${escape(scheduleLabel(agent))}</div>`;
+    : `<div class="proposal-empty">No tasks yet · next run ${escape(scheduleLabel(agent))}</div>`;
   const sectionCollapsed = state.collapsedSections.has(agent.id);
 
   // Inline report section
@@ -851,11 +851,11 @@ function renderActiveCard(agent) {
     ? `<div class="report-empty">No report found yet.</div>`
     : briefingStatus === "error"
     ? `<div class="report-empty">Couldn't load report.</div>`
-    : `<div class="report-loading">Loadingâ€¦</div>`;
+    : `<div class="report-loading">Loading…</div>`;
   const reportSectionHtml = generatedAt ? `
     <div class="report-section${reportCollapsed ? " collapsed" : ""}">
       <button class="task-section-header" data-action="toggle-report" data-agent-id="${escape(agent.id)}">
-        <span class="task-section-title">ðŸ“ Last Report <span class="report-time">${timeAgo(generatedAt)}</span></span>
+        <span class="task-section-title">📝 Last Report <span class="report-time">${timeAgo(generatedAt)}</span></span>
         <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="report-body">
@@ -900,9 +900,9 @@ function renderActiveCard(agent) {
         </div>
         <div class="card-meta">
           <span class="card-meta-item"><span class="dot ${lastRunDot}"></span>${agent.last_run ? "Last run " + timeAgo(agent.last_run.completed_at) : "No runs yet"}</span>
-          <span class="card-meta-item">â° ${escape(scheduleLabel(agent))}</span>
-          ${generatedAt ? `<button class="card-meta-item briefing-chip" data-action="view-briefing" data-agent-id="${escape(agent.id)}" title="Open today's briefing">ðŸ“ Brief ${timeAgo(generatedAt)}</button>` : ""}
-          ${agent.skill && agent.skill.startsWith("/") ? `<button class="btn-trigger${cronToggles.get(agent.id) ? " cron-active" : ""}" data-action="toggle-cron" data-cmd="${escape(agent.skill)}" title="${cronToggles.get(agent.id) ? "Click to remove from execute" : "Click to include in execute"}: ${escape(agent.skill)}">â–¶</button>` : ""}
+          <span class="card-meta-item">⏰ ${escape(scheduleLabel(agent))}</span>
+          ${generatedAt ? `<button class="card-meta-item briefing-chip" data-action="view-briefing" data-agent-id="${escape(agent.id)}" title="Open today's briefing">📝 Brief ${timeAgo(generatedAt)}</button>` : ""}
+          ${agent.skill && agent.skill.startsWith("/") ? `<button class="btn-trigger${cronToggles.get(agent.id) ? " cron-active" : ""}" data-action="toggle-cron" data-cmd="${escape(agent.skill)}" title="${cronToggles.get(agent.id) ? "Click to remove from execute" : "Click to include in execute"}: ${escape(agent.skill)}">▶</button>` : ""}
         </div>
         <div class="mcp-row">${mcpRow}</div>
       </div>
@@ -910,7 +910,7 @@ function renderActiveCard(agent) {
       <div class="adhoc-compose">
         <textarea
           class="adhoc-input"
-          placeholder="Ask ${escape(agent.name)}â€¦ (Enter to send, Shift+Enter for newline)"
+          placeholder="Ask ${escape(agent.name)}… (Enter to send, Shift+Enter for newline)"
           data-action="adhoc-input"
           rows="1"
         >${escape(adhocDrafts.get(agent.id) || "")}</textarea>
@@ -929,7 +929,7 @@ function renderActiveCard(agent) {
 
       <div class="card-footer ${anyInProg ? "in-progress" : ""}">
         <div class="footer-stats">
-          ${inProgCount > 0 ? `<strong>${inProgCount}</strong> in progress Â· ` : ""}
+          ${inProgCount > 0 ? `<strong>${inProgCount}</strong> in progress · ` : ""}
           <strong>${todoCount}</strong> to do
         </div>
         <button class="btn-execute" data-action="execute"${actionableCount === 0 ? " disabled" : ""}>Execute${actionableCount > 0 ? ` (${actionableCount})` : ""}</button>
@@ -994,10 +994,10 @@ function renderDetail(agentId) {
     return renderProposal(agentId, p, decisions[p.id], generatedAt);
   };
 
-  // Sort proposals by urgency (priority, then due date asc) â€” most urgent first.
+  // Sort proposals by urgency (priority, then due date asc) — most urgent first.
   let proposalsHtml;
   if (!proposals.length) {
-    proposalsHtml = `<div class="proposal-empty">No proposals yet Â· next run ${escape(scheduleLabel(agent))}</div>`;
+    proposalsHtml = `<div class="proposal-empty">No proposals yet · next run ${escape(scheduleLabel(agent))}</div>`;
   } else {
     const sortedProposals = proposals.slice().sort((a, b) => {
       const pa = priorityOrder(a);
@@ -1014,7 +1014,7 @@ function renderDetail(agentId) {
 
   $("#detail-view").innerHTML = `
     <div class="detail-back">
-      <a href="#" class="back-link">â† Back to all agents</a>
+      <a href="#" class="back-link">← Back to all agents</a>
     </div>
 
     <div class="detail-card" style="--card-color:${escape(agent.color)};--card-pastel:${escape(agent.pastel)}">
@@ -1024,9 +1024,9 @@ function renderDetail(agentId) {
           <div class="detail-tagline">${escape(agent.tagline)}</div>
           <h1 class="detail-name">${escape(agent.name)}</h1>
           <div class="detail-meta">
-            <span class="detail-meta-item">â° ${escape(scheduleLabel(agent))}</span>
+            <span class="detail-meta-item">⏰ ${escape(scheduleLabel(agent))}</span>
             ${agent.last_run ? `<span class="detail-meta-item">Last run ${timeAgo(agent.last_run.completed_at)}</span>` : '<span class="detail-meta-item">No runs yet</span>'}
-            ${generatedAt ? `<button class="detail-meta-item briefing-chip" data-action="view-briefing" data-agent-id="${escape(agentId)}" title="Open today's briefing">ðŸ“ Brief ${timeAgo(generatedAt)}</button>` : ""}
+            ${generatedAt ? `<button class="detail-meta-item briefing-chip" data-action="view-briefing" data-agent-id="${escape(agentId)}" title="Open today's briefing">📝 Brief ${timeAgo(generatedAt)}</button>` : ""}
             ${stale ? '<span class="stale-badge">Stale</span>' : ""}
           </div>
           <div class="mcp-row">${mcpRow}</div>
@@ -1036,11 +1036,11 @@ function renderDetail(agentId) {
       <div class="detail-section">
         <div class="detail-section-head">
           <h2>Recommended tasks <span class="task-count" style="background:${escape(agent.color)}">${proposals.length}</span></h2>
-          <div class="footer-stats"><strong>${touchedCountDetail}</strong> ready Â· <strong>${todoCountDetail}</strong> to do</div>
+          <div class="footer-stats"><strong>${touchedCountDetail}</strong> ready · <strong>${todoCountDetail}</strong> to do</div>
         </div>
         <div class="proposal-list detail-proposals">${proposalsHtml}</div>
         <div class="detail-execute-row">
-          <button class="btn-execute ${isRunning ? "running" : ""}" data-action="execute" data-agent-id="${escape(agentId)}" ${actionableCountDetail === 0 || isRunning ? "disabled" : ""}>${isRunning ? "Runningâ€¦" : actionableCountDetail > 0 ? `Execute Â· ${actionableCountDetail}` : "Execute"}</button>
+          <button class="btn-execute ${isRunning ? "running" : ""}" data-action="execute" data-agent-id="${escape(agentId)}" ${actionableCountDetail === 0 || isRunning ? "disabled" : ""}>${isRunning ? "Running…" : actionableCountDetail > 0 ? `Execute · ${actionableCountDetail}` : "Execute"}</button>
         </div>
       </div>
 
@@ -1072,7 +1072,7 @@ function collectInboxItems(skipAgentFilter = false) {
   for (const ci of state.completedItems || []) {
     items.push(ci);
   }
-  // Agent filter â€” multi-select. Empty Set = no filter (All).
+  // Agent filter — multi-select. Empty Set = no filter (All).
   if (!skipAgentFilter && state.inboxAgentFilter && state.inboxAgentFilter.size > 0) {
     items = items.filter(it => state.inboxAgentFilter.has(it.agent?.id));
   }
@@ -1089,19 +1089,19 @@ function collectInboxItems(skipAgentFilter = false) {
 }
 
 function groupInboxItems(items) {
-  // Kanban flow: To Do â†’ Pending â†’ Scheduled â†’ Queued â†’ Completed
-  //  todo: untouched (pristine from cron â€” Matt hasn't commented/edited)
-  //  pending: touched (comment, thread, or body edit) â€” ready to execute
+  // Kanban flow: To Do → Pending → Scheduled → Queued → Completed
+  //  todo: untouched (pristine from cron — Matt hasn't commented/edited)
+  //  pending: touched (comment, thread, or body edit) — ready to execute
   //  scheduled: has a due_date strictly in the future (parked for later)
-  //  queued: status === "in_progress" â€” waiting for /execute-* to run
+  //  queued: status === "in_progress" — waiting for /execute-* to run
   //  completed: status === "executed" or sourced from history feed
   //
   // Scheduled is checked BEFORE pending/todo so a future-dated card with an
   // existing thread still parks. The moment due_date <= today, it falls
-  // through to the normal pending/todo logic â€” auto-surfacing without a cron run.
+  // through to the normal pending/todo logic — auto-surfacing without a cron run.
   const groups = { todo: [], pending: [], scheduled: [], in_progress: [], completed: [] };
   // Local-date YYYY-MM-DD so this matches the "today/tomorrow" badge (formatDueDate).
-  // toISOString() returns UTC â€” in evening ET that's already tomorrow, which wrongly
+  // toISOString() returns UTC — in evening ET that's already tomorrow, which wrongly
   // parks today's cards in the Scheduled column.
   const today = new Date().toLocaleDateString("en-CA");
   for (const it of items) {
@@ -1126,7 +1126,7 @@ function groupInboxItems(items) {
     const db = b.proposal.due_date || "9999-99-99";
     return da.localeCompare(db);
   };
-  // To Do sorts by date first (urgency-forward â€” overdue bubbles up), then priority.
+  // To Do sorts by date first (urgency-forward — overdue bubbles up), then priority.
   // Other groups keep priority-first sort.
   const sortByDateThenPriority = (a, b) => {
     const da = a.proposal.due_date || "9999-99-99";
@@ -1149,7 +1149,7 @@ function renderInboxHeader(items, groups) {
     return addedAt && (Date.now() - new Date(addedAt)) / 86400000 >= 3;
   }).length;
 
-  // Agent filter pills â€” built from ALL unfiltered items so the bar stays visible even when a filter is active
+  // Agent filter pills — built from ALL unfiltered items so the bar stays visible even when a filter is active
   const allItems = collectInboxItems(true);
   const agentIds = [...new Set(allItems.map(it => it.agent?.id).filter(Boolean))];
   const selected = state.inboxAgentFilter;
@@ -1174,18 +1174,18 @@ function renderInboxHeader(items, groups) {
         </div>
       </div>
       <div class="inbox-toolbar-right">
-        <input class="inbox-search" type="text" placeholder="Search tasksâ€¦" value="${escape(state.inboxSearch)}" id="inbox-search-input">
+        <input class="inbox-search" type="text" placeholder="Search tasks…" value="${escape(state.inboxSearch)}" id="inbox-search-input">
         <button class="btn-ghost inbox-add-btn" id="inbox-add-task">+ Add task</button>
-        <button class="btn-primary" id="inbox-execute-all" ${readyCount === 0 ? "disabled" : ""}>${readyCount > 0 ? `Execute all Â· ${readyCount}` : "Execute all"}</button>
+        <button class="btn-primary" id="inbox-execute-all" ${readyCount === 0 ? "disabled" : ""}>${readyCount > 0 ? `Execute all · ${readyCount}` : "Execute all"}</button>
       </div>
     </div>
     ${agentFilterHtml}
     <div class="inbox-summary-bar">
-      <strong>${groups.todo.length}</strong> to do${staleCount ? ` <span class="stale-nudge">(${staleCount} aging)</span>` : ""} Â· <strong>${groups.pending.length}</strong> ready Â· <strong>${groups.scheduled.length}</strong> scheduled Â· <strong>${groups.in_progress.length}</strong> in progress Â· <strong>${groups.completed.length}</strong> completed
+      <strong>${groups.todo.length}</strong> to do${staleCount ? ` <span class="stale-nudge">(${staleCount} aging)</span>` : ""} · <strong>${groups.pending.length}</strong> ready · <strong>${groups.scheduled.length}</strong> scheduled · <strong>${groups.in_progress.length}</strong> in progress · <strong>${groups.completed.length}</strong> completed
     </div>
     <div id="inbox-add-form" class="inbox-add-form" style="display:none">
       <div class="inbox-add-form-inner">
-        <input class="inbox-add-input" type="text" placeholder="Task titleâ€¦" id="inbox-add-title">
+        <input class="inbox-add-input" type="text" placeholder="Task title…" id="inbox-add-title">
         <select class="inbox-add-select" id="inbox-add-agent">
           ${state.agents.map(a => `<option value="${escape(a.id)}">${a.emoji} ${escape(a.name)}</option>`).join("")}
         </select>
@@ -1209,7 +1209,7 @@ function renderInbox() {
   if (items.length === 0) {
     $("#inbox-view").innerHTML = `
       ${renderInboxHeader(items, groups)}
-      <div class="inbox-empty"><div style="font-size:42px;margin-bottom:12px">â˜•</div><div>No proposals from any agent yet today.</div></div>
+      <div class="inbox-empty"><div style="font-size:42px;margin-bottom:12px">☕</div><div>No proposals from any agent yet today.</div></div>
     `;
     return;
   }
@@ -1227,7 +1227,7 @@ function renderInbox() {
   }
 }
 
-// Database view â€” flat sortable table of every item collected from the inbox
+// Database view — flat sortable table of every item collected from the inbox
 // data source (proposals + recently-completed history). Same data as List/Kanban,
 // just a denser tabular layout for scanning + bulk-eyeballing.
 function renderInboxDatabase(items, groups) {
@@ -1264,14 +1264,14 @@ function renderInboxDatabase(items, groups) {
     const st = stateOf(it);
     const actionLabel = ACTION_LABELS[p.action_type] || (p.action_type || "").replace(/_/g, " ");
     const dueStr = normalizeDateStr(p.due_date);
-    const dueCell = dueStr ? escape(formatDueDate(dueStr)) : "â€”";
-    const company = p.company_slug ? escape(p.company_slug) : "â€”";
+    const dueCell = dueStr ? escape(formatDueDate(dueStr)) : "—";
+    const company = p.company_slug ? escape(p.company_slug) : "—";
     return `
       <tr class="clickable" data-prop-id="${escape(p.id)}" data-agent="${escape(agent.id)}">
         <td><span class="agent-tag" style="background:${escape(agent.pastel)};color:${escape(agent.color)}">${agent.emoji} ${escape(agent.name)}</span></td>
         <td>${escape(p.title || "")}</td>
-        <td>${actionLabel ? `<span class="action-chip">${escape(actionLabel)}</span>` : "â€”"}</td>
-        <td>${renderPriorityBadge(p.priority) || "â€”"}</td>
+        <td>${actionLabel ? `<span class="action-chip">${escape(actionLabel)}</span>` : "—"}</td>
+        <td>${renderPriorityBadge(p.priority) || "—"}</td>
         <td>${dueCell}</td>
         <td>${company}</td>
         <td><span class="db-state-pill db-state-${st}">${escape(STATE_LABELS[st] || st)}</span></td>
@@ -1307,7 +1307,7 @@ function renderInboxList(items, groups) {
       <td colspan="6" class="inbox-section-cell">
         <span class="inbox-section-label">${escape(label)}</span>
         <span class="inbox-group-count">${count}</span>
-        ${collapsible ? `<span class="inbox-group-chevron${collapsed ? "" : " open"}">${collapsed ? "â–¸" : "â–¾"}</span>` : ""}
+        ${collapsible ? `<span class="inbox-group-chevron${collapsed ? "" : " open"}">${collapsed ? "▸" : "▾"}</span>` : ""}
       </td>
     </tr>`;
 
@@ -1351,9 +1351,9 @@ function renderInboxList(items, groups) {
             ${comment ? `<span class="inbox-comment-preview" title="Comment saved">${escape(comment)}</span>` : ""}
           </td>
           <td class="inbox-td-company">${companyName ? `<span class="inbox-company">${escape(companyName)}</span>` : "<span class='db-null'></span>"}</td>
-          <td class="inbox-td-action">${actionLabel ? `<span class="action-chip">${escape(actionLabel)}</span>` : "<span class='db-null'>â€”</span>"}</td>
-          <td class="inbox-td-priority">${renderPriorityBadge(p.priority) || "<span class='db-null'>â€”</span>"}</td>
-          <td class="inbox-td-due">${dueDisplay || "<span class='db-null'>â€”</span>"}</td>
+          <td class="inbox-td-action">${actionLabel ? `<span class="action-chip">${escape(actionLabel)}</span>` : "<span class='db-null'>—</span>"}</td>
+          <td class="inbox-td-priority">${renderPriorityBadge(p.priority) || "<span class='db-null'>—</span>"}</td>
+          <td class="inbox-td-due">${dueDisplay || "<span class='db-null'>—</span>"}</td>
         </tr>
         <tr class="inbox-tr-detail ${isExpanded ? "" : "hidden"}" data-detail-for="${escape(p.id)}">
           <td colspan="6" class="inbox-td-detail">
@@ -1362,8 +1362,8 @@ function renderInboxList(items, groups) {
             ${comment ? `<div class="inbox-detail-comment-row"><span class="inbox-detail-comment-label">Your comment:</span> <span class="inbox-detail-comment-text">${escape(comment)}</span></div>` : ""}
             ${showMenu ? `<div class="inbox-detail-actions">
               <button class="row-action-btn row-action-reply" data-action="open-reply" data-prop-id="${escape(p.id)}" data-agent="${escape(agent.id)}">${comment ? "Edit reply" : "Reply"}</button>
-              <button class="row-action-btn row-action-done" data-resolve="completed" data-prop-id="${escape(p.id)}" data-agent="${escape(agent.id)}">âœ“ Done</button>
-              <button class="row-action-btn row-action-dismiss" data-resolve="dismissed" data-prop-id="${escape(p.id)}" data-agent="${escape(agent.id)}">âœ— Dismiss</button>
+              <button class="row-action-btn row-action-done" data-resolve="completed" data-prop-id="${escape(p.id)}" data-agent="${escape(agent.id)}">✓ Done</button>
+              <button class="row-action-btn row-action-dismiss" data-resolve="dismissed" data-prop-id="${escape(p.id)}" data-agent="${escape(agent.id)}">✗ Dismiss</button>
             </div>` : ""}
           </td>
         </tr>`;
@@ -1472,7 +1472,7 @@ function renderInboxKanban(items, groups) {
   `;
 }
 
-// Due-date chip on a kanban card. Clickable â†’ opens a native date picker and
+// Due-date chip on a kanban card. Clickable → opens a native date picker and
 // PUTs /due_date. Hidden on completed/executed cards (no point scheduling
 // something that's already done). Queued cards also skip the chip since
 // they're waiting on execution and editing dates mid-flight is confusing.
@@ -1483,10 +1483,10 @@ function renderDueDateBadge(p, decision) {
   const overdueClass = isOverdue ? " meta-due-overdue" : "";
   const dueValue = dateStr || "";
   if (status === "executed" || status === "in_progress") {
-    return dateStr ? `<span class="meta-due meta-due-locked${overdueClass}">ðŸ“… ${escape(formatDueDate(dateStr))}</span>` : "";
+    return dateStr ? `<span class="meta-due meta-due-locked${overdueClass}">📅 ${escape(formatDueDate(dateStr))}</span>` : "";
   }
   if (dateStr) {
-    return `<span class="meta-due${overdueClass}" data-due-edit="1" data-due-value="${escape(dueValue)}" title="Click to change or clear">ðŸ“… ${escape(formatDueDate(dateStr))}</span>`;
+    return `<span class="meta-due${overdueClass}" data-due-edit="1" data-due-value="${escape(dueValue)}" title="Click to change or clear">📅 ${escape(formatDueDate(dateStr))}</span>`;
   }
   return `<span class="meta-due meta-due-empty" data-due-edit="1" data-due-value="" title="Schedule for later">+ date</span>`;
 }
@@ -1522,7 +1522,7 @@ function renderKanbanCard({ agent, proposal: p, decision, generatedAt }) {
       ${hasComment || hasThread || isEdited ? `
         <div class="kanban-card-flags">
           ${isEdited ? '<span class="kanban-flag edited">edited</span>' : ""}
-          ${hasComment || hasThread ? '<span class="kanban-flag comment">ðŸ’¬ comment</span>' : ""}
+          ${hasComment || hasThread ? '<span class="kanban-flag comment">💬 comment</span>' : ""}
         </div>
       ` : ""}
       <div class="kanban-card-meta">
@@ -1530,7 +1530,7 @@ function renderKanbanCard({ agent, proposal: p, decision, generatedAt }) {
         ${renderDueDateBadge(p, decision)}
       </div>
       ${isInProgress ? `
-        <div class="kanban-card-in-progress"><span class="spinner"></span>In progress â€” /execute-${escape(agent.id)}</div>
+        <div class="kanban-card-in-progress"><span class="spinner"></span>In progress — /execute-${escape(agent.id)}</div>
       ` : ""}
     </div>
   `;
@@ -1575,7 +1575,7 @@ function renderInboxRow(agent, p, decisionRecord, generatedAt) {
           </div>
         </div>` : ""}
       </div>
-      <textarea class="proposal-comment" placeholder="Type yes to approve, or tell the agent what to changeâ€¦" data-action="comment">${escape(comment)}</textarea>
+      <textarea class="proposal-comment" placeholder="Type yes to approve, or tell the agent what to change…" data-action="comment">${escape(comment)}</textarea>
       <div class="proposal-detail ${isExpanded ? "" : "hidden"}">
         <div class="proposal-rationale">${escape(p.rationale || "")}</div>
         ${renderPreview(p.preview, editedBody)}
@@ -1586,7 +1586,7 @@ function renderInboxRow(agent, p, decisionRecord, generatedAt) {
 
 async function renderHistory() {
   const view = $("#history-view");
-  view.innerHTML = `<div class="history-loading">Loading historyâ€¦</div>`;
+  view.innerHTML = `<div class="history-loading">Loading history…</div>`;
 
   let events = [];
   try {
@@ -1604,7 +1604,7 @@ async function renderHistory() {
         <h1 class="inbox-title">History</h1>
       </div>
       <div class="inbox-empty">
-        <div style="font-size:42px;margin-bottom:12px">ðŸ“­</div>
+        <div style="font-size:42px;margin-bottom:12px">📭</div>
         <div>Nothing has happened yet. Cron runs and executions will show up here.</div>
       </div>`;
     return;
@@ -1627,13 +1627,13 @@ async function renderHistory() {
   };
 
   const eventIcon = (e) => {
-    if (e.type === "cron") return "â°";
-    if (e.type === "execute") return "âš¡";
+    if (e.type === "cron") return "⏰";
+    if (e.type === "execute") return "⚡";
     if (e.type === "decision") {
-      if (e.decision === "yes") return e.executed ? "âœ…" : "ðŸ‘";
-      return "âŒ";
+      if (e.decision === "yes") return e.executed ? "✅" : "👍";
+      return "❌";
     }
-    return "â€¢";
+    return "•";
   };
 
   const renderEvent = (e) => {
@@ -1680,7 +1680,7 @@ async function renderHistory() {
     <div class="history-header">
       <div class="inbox-eyebrow">Activity log</div>
       <h1 class="inbox-title">History</h1>
-      <div class="inbox-summary">${events.length} events Â· ${groups.size} days</div>
+      <div class="inbox-summary">${events.length} events · ${groups.size} days</div>
     </div>
     ${groupsHtml}
   `;
@@ -1691,7 +1691,7 @@ function route() {
   snapshotDrafts();
 
   // Backward-compat: old DB Companies routes redirect to the unified Companies tab.
-  // The DB sub-nav no longer has a Companies entry â€” toggle Coverage/Table/Kanban
+  // The DB sub-nav no longer has a Companies entry — toggle Coverage/Table/Kanban
   // lives at the top of the new tab instead.
   if (location.hash === "#/db/companies") { location.replace("#/companies?mode=table"); return; }
   const dbCompanyOldM = location.hash.match(/^#\/db\/companies\/([\w-]+)$/);
@@ -1791,7 +1791,7 @@ function route() {
 async function loadReportsFeed() {
   const el = $("#reports-feed");
   if (!el) return;
-  el.innerHTML = '<div class="reports-loading">Loadingâ€¦</div>';
+  el.innerHTML = '<div class="reports-loading">Loading…</div>';
   try {
     const res = await fetch("api/briefings/today?days=7");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1805,7 +1805,7 @@ async function loadReportsFeed() {
       return `
         <section class="report-card" style="--card-color:${escape(agent?.color || "#64748b")}">
           <div class="report-card-head">
-            <span class="report-card-emoji">${agent?.emoji || "ðŸ¤–"}</span>
+            <span class="report-card-emoji">${agent?.emoji || "🤖"}</span>
             <span class="report-card-name">${escape(agent?.name || r.agent)}</span>
             <span class="report-card-date">${escape(r.report_date || "")}</span>
             <span class="report-card-age">${timeAgo(r.created_at || r.report_date)}</span>
@@ -1814,7 +1814,7 @@ async function loadReportsFeed() {
         </section>`;
     }).join("");
   } catch (err) {
-    el.innerHTML = `<div class="reports-empty">Couldn't load reports â€” ${escape(err.message)}</div>`;
+    el.innerHTML = `<div class="reports-empty">Couldn't load reports — ${escape(err.message)}</div>`;
   }
 }
 
@@ -1916,7 +1916,7 @@ function render() {
       });
   }, 0);
 
-  // global execute button â€” must match per-card logic (touched + adhoc + cron)
+  // global execute button — must match per-card logic (touched + adhoc + cron)
   const totalActionable = state.agents.reduce((sum, a) => {
     const propData = state.tasksByAgent[a.id];
     if (!propData) return sum;
@@ -1928,11 +1928,11 @@ function render() {
     return sum + touched + (hasAdhoc ? 1 : 0) + (isCronToggled ? 1 : 0);
   }, 0);
   const btn = $("#execute-all-btn");
-  btn.textContent = totalActionable > 0 ? `Execute all Â· ${totalActionable}` : "Execute all";
+  btn.textContent = totalActionable > 0 ? `Execute all · ${totalActionable}` : "Execute all";
   btn.disabled = totalActionable === 0;
 }
 
-// â”€â”€â”€ Data fetching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Data fetching ──────────────────────────────────────────────
 async function loadAll() {
   const agentsRes = await fetch("api/agents");
   state.agents = await agentsRes.json();
@@ -1949,9 +1949,9 @@ async function loadAll() {
 
   // Load recently-executed items for the Completed column in inbox/kanban.
   // Two sources, deduped by proposal id:
-  //   1. /api/completed â€” proposals with decision.status='executed' (catches
+  //   1. /api/completed — proposals with decision.status='executed' (catches
   //      adhocs and archived items that never wrote to the executions table)
-  //   2. /api/history â€” legacy feed keyed off the executions table; still the
+  //   2. /api/history — legacy feed keyed off the executions table; still the
   //      best source for /execute-* runs that don't flip proposal_decisions
   // Window is 14 days so Matt can review a reasonable span of recent work.
   try {
@@ -1966,7 +1966,7 @@ async function loadAll() {
     for (const ci of completedRows) {
       // Hydrate agent from live state if we have it (richer color/pastel)
       const liveAgent = state.agents.find((a) => a.id === ci.agent.id);
-      // Server returns task: {...}; downstream code reads .proposal â€” alias it.
+      // Server returns task: {...}; downstream code reads .proposal — alias it.
       const item = { ...ci, agent: liveAgent || ci.agent, proposal: ci.task || ci.proposal };
       byId.set(item.proposal.id, item);
     }
@@ -2012,10 +2012,10 @@ async function loadAll() {
   route();
 }
 
-// â”€â”€â”€ Interactions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Interactions ───────────────────────────────────────────────
 async function setDecision(agentId, propId, decision, comment, opts = {}) {
   // local optimistic update FIRST so UI is instant.
-  // Critical: PRESERVE the thread + edits when toggling â€” only mutate decision/status.
+  // Critical: PRESERVE the thread + edits when toggling — only mutate decision/status.
   const data = state.tasksByAgent[agentId];
   if (data) {
     const existing = data.decisions[propId] || { thread: [] };
@@ -2037,7 +2037,7 @@ async function setDecision(agentId, propId, decision, comment, opts = {}) {
   }
   if (!opts.skipRender) preserveFocusAndRender();
 
-  // server PUT after â€” fire and forget
+  // server PUT after — fire and forget
   fetch(`api/agents/${agentId}/tasks/${propId}/decision`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -2046,7 +2046,7 @@ async function setDecision(agentId, propId, decision, comment, opts = {}) {
 }
 
 async function sendThreadMessage(agentId, propId, text) {
-  // Optimistic local update â€” thread message is the decision.
+  // Optimistic local update — thread message is the decision.
   // Claude's execute router reads the thread and classifies it.
   const data = state.tasksByAgent[agentId];
   if (data) {
@@ -2062,7 +2062,7 @@ async function sendThreadMessage(agentId, propId, text) {
   // Keep this proposal expanded so the new message is visible
   state.expandedProps.add(propId);
   route();
-  toast("Message added â€” run /execute-{agent} to process");
+  toast("Message added — run /execute-{agent} to process");
 
   // Server save
   fetch(`api/agents/${agentId}/tasks/${propId}/message`, {
@@ -2094,7 +2094,7 @@ function queueEditSave(agentId, propId, bodyText) {
     edits: Object.keys(edits).length ? edits : undefined,
   };
 
-  // Surgical visual update â€” toggle the edited badge + flip to touched state
+  // Surgical visual update — toggle the edited badge + flip to touched state
   const card = document.querySelector(`[data-prop-id="${CSS.escape(propId)}"]`);
   if (card) {
     const wrap = card.querySelector(".preview-body-wrap");
@@ -2132,12 +2132,12 @@ function queueEditSave(agentId, propId, bodyText) {
   );
 }
 
-// Debounced comment writer â€” saves on every keystroke without nuking the DOM
+// Debounced comment writer — saves on every keystroke without nuking the DOM
 const commentDebounce = new Map(); // propId -> timeout id
 function queueCommentSave(agentId, propId, comment) {
   const data = state.tasksByAgent[agentId];
   if (!data) return;
-  // Optimistic local update â€” no render. Any comment = touched = actionable.
+  // Optimistic local update — no render. Any comment = touched = actionable.
   const existing = data.decisions[propId] || {};
   data.decisions[propId] = { ...existing, comment };
 
@@ -2185,7 +2185,7 @@ function propContext(el) {
   return { propId: null, agentId: null };
 }
 
-// â”€â”€â”€ Reply modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Reply modal ────────────────────────────────────────────────
 function openReplyModal(propId, agentId) {
   const existing = document.getElementById("reply-modal");
   if (existing) existing.remove();
@@ -2205,7 +2205,7 @@ function openReplyModal(propId, agentId) {
         <span class="reply-modal-title">${escape(title)}</span>
         <button class="reply-modal-close" id="reply-modal-close">&times;</button>
       </div>
-      <textarea class="reply-modal-textarea" id="reply-modal-ta" placeholder="Type yes to approve, or tell the agent what to changeâ€¦">${escape(currentComment)}</textarea>
+      <textarea class="reply-modal-textarea" id="reply-modal-ta" placeholder="Type yes to approve, or tell the agent what to change…">${escape(currentComment)}</textarea>
       <div class="reply-modal-footer">
         <button class="reply-modal-btn reply-modal-cancel" id="reply-modal-cancel">Cancel</button>
         <button class="reply-modal-btn reply-modal-save" id="reply-modal-save">Save</button>
@@ -2285,21 +2285,21 @@ function updateCounts() {
     ).length;
     const stats = card.querySelector(".footer-stats");
     if (stats) {
-      stats.innerHTML = `<strong>${touched}</strong> ready Â· <strong>${todo}</strong> to do`;
+      stats.innerHTML = `<strong>${touched}</strong> ready · <strong>${todo}</strong> to do`;
     }
     const isCronToggled = !!cronToggles.get(agentId);
     const exec = card.querySelector('[data-action="execute"]');
     if (exec) {
       const hasAdhoc = (adhocDrafts.get(agentId) || "").trim().length > 0;
       const actionable = touched + (hasAdhoc ? 1 : 0) + (isCronToggled ? 1 : 0);
-      exec.textContent = actionable > 0 ? `Execute Â· ${actionable}` : "Execute";
+      exec.textContent = actionable > 0 ? `Execute · ${actionable}` : "Execute";
       exec.disabled = actionable === 0;
     }
-    // Sync â–¶ cron button visual state
+    // Sync ▶ cron button visual state
     const cronBtn = card.querySelector('[data-action="toggle-cron"]');
     if (cronBtn) cronBtn.classList.toggle("cron-active", isCronToggled);
   });
-  // Global topbar button â€” must match per-card logic (touched + adhoc + cron toggle)
+  // Global topbar button — must match per-card logic (touched + adhoc + cron toggle)
   const totalActionable = state.agents.reduce((s, a) => {
     const d = state.tasksByAgent[a.id];
     if (!d) return s;
@@ -2313,13 +2313,13 @@ function updateCounts() {
   }, 0);
   const btn = document.getElementById("execute-all-btn");
   if (btn) {
-    btn.textContent = totalActionable > 0 ? `Execute all Â· ${totalActionable}` : "Execute all";
+    btn.textContent = totalActionable > 0 ? `Execute all · ${totalActionable}` : "Execute all";
     btn.disabled = totalActionable === 0;
   }
 }
 
 document.addEventListener("click", async (e) => {
-  // Briefing chip (per-agent) â€” open today's briefing for that agent
+  // Briefing chip (per-agent) — open today's briefing for that agent
   const briefBtn = e.target.closest('[data-action="view-briefing"]');
   if (briefBtn) {
     e.preventDefault();
@@ -2329,7 +2329,7 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  // Today's Briefings topbar button â€” show all agents' briefings in one modal
+  // Today's Briefings topbar button — show all agents' briefings in one modal
   const allBriefBtn = e.target.closest('[data-action="view-all-briefings"]');
   if (allBriefBtn) {
     e.preventDefault();
@@ -2337,7 +2337,7 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  // Notification bell â€” toggle the activity panel
+  // Notification bell — toggle the activity panel
   const bellBtn = e.target.closest('[data-action="toggle-notif-bell"]');
   if (bellBtn) {
     e.preventDefault();
@@ -2370,7 +2370,7 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  // Click on a notification row â€” mark it seen, jump to the agent/proposal
+  // Click on a notification row — mark it seen, jump to the agent/proposal
   const notifRow = e.target.closest(".notif-row");
   if (notifRow && notifRow.closest("#notif-panel")) {
     const eventId = notifRow.dataset.eventId;
@@ -2429,7 +2429,7 @@ document.addEventListener("click", async (e) => {
       if (body && state.agentBriefings[agentId]) {
         body.innerHTML = `<div class="briefing-markdown">${renderBriefingMarkdown(state.agentBriefings[agentId].body)}</div>`;
       } else if (body) {
-        body.innerHTML = `<div class="report-loading">Loadingâ€¦</div>`;
+        body.innerHTML = `<div class="report-loading">Loading…</div>`;
         state.agentBriefingStatus[agentId] = "loading";
         fetch(`api/agents/${agentId}/briefing`)
           .then((res) => {
@@ -2500,7 +2500,7 @@ document.addEventListener("click", async (e) => {
       await navigator.clipboard.writeText(slash);
       toast(`Copied ${slash}`);
     } catch {
-      toast(`Couldn't copy â€” ${slash}`);
+      toast(`Couldn't copy — ${slash}`);
     }
     // close popover
     document.querySelectorAll(".skills-popover.show").forEach((p) => p.classList.remove("show"));
@@ -2521,11 +2521,11 @@ document.addEventListener("click", async (e) => {
     const nowOpen = !state.replyOpenProps.has(id);
     if (nowOpen) state.replyOpenProps.add(id);
     else state.replyOpenProps.delete(id);
-    // Surgical toggle â€” only re-render this one card so we don't lose focus elsewhere
+    // Surgical toggle — only re-render this one card so we don't lose focus elsewhere
     card.classList.toggle("reply-open", nowOpen);
     toggleReply.classList.toggle("active", nowOpen);
 
-    // If the card is already expanded, don't duplicate the compose inline â€”
+    // If the card is already expanded, don't duplicate the compose inline —
     // let the user scroll down to the sticky compose (or just use it).
     const isExpanded = card.classList.contains("expanded");
     let inline = card.querySelector(".reply-inline");
@@ -2551,7 +2551,7 @@ document.addEventListener("click", async (e) => {
       if (ta && ta.value.trim()) {
         threadDrafts.set(id, ta.value);
         persistDrafts();
-        // Keep it open if there's a draft â€” don't lose Matt's text
+        // Keep it open if there's a draft — don't lose Matt's text
         state.replyOpenProps.add(id);
         card.classList.add("reply-open");
         toggleReply.classList.add("active");
@@ -2589,7 +2589,7 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  // Unstick â€” reset an in_progress proposal back to To-Do by deleting its
+  // Unstick — reset an in_progress proposal back to To-Do by deleting its
   // decision row (server's /move endpoint with target=todo does exactly that).
   // This is the escape hatch when Matt queues something via Execute All but
   // never runs the paired /execute-* slash command, leaving the card stranded.
@@ -2613,13 +2613,13 @@ document.addEventListener("click", async (e) => {
       toast("Reset to To-Do");
       render();
     } catch (err) {
-      toast(`Couldn't reset â€” ${err.message}`);
+      toast(`Couldn't reset — ${err.message}`);
       unstickBtn.disabled = false;
     }
     return;
   }
 
-  // Ad-hoc Send â€” commit the textarea text as a pre-approved freeform proposal
+  // Ad-hoc Send — commit the textarea text as a pre-approved freeform proposal
   // and immediately kick the execute pipeline for that agent. This is the
   // missing path that made "Ask {agent}" feel broken: typing stored text but
   // nothing fired it. Now Enter-in-textarea and click-Send both route here.
@@ -2631,7 +2631,7 @@ document.addEventListener("click", async (e) => {
     const text = (adhocDrafts.get(agentId) || "").trim();
     if (!text) return;
     adhocSendBtn.disabled = true;
-    adhocSendBtn.textContent = "Sendingâ€¦";
+    adhocSendBtn.textContent = "Sending…";
     try {
       await commitAdhoc(agentId);
       // Clear the textarea visually and in state
@@ -2645,10 +2645,10 @@ document.addEventListener("click", async (e) => {
         state.tasksByAgent[agentId] = await r.json();
       } catch {}
       const agent = state.agents.find((a) => a.id === agentId);
-      toast(`Sent to ${agent?.name || agentId} â€” open the task to execute`);
+      toast(`Sent to ${agent?.name || agentId} — open the task to execute`);
       render();
     } catch (err) {
-      toast(`Couldn't send â€” ${err.message}`);
+      toast(`Couldn't send — ${err.message}`);
       adhocSendBtn.disabled = false;
       adhocSendBtn.textContent = "Send";
     }
@@ -2751,7 +2751,7 @@ document.addEventListener("click", async (e) => {
               if (ta) ta.value = "";
             }
           }
-          // Optimistic local queue â€” any touched item
+          // Optimistic local queue — any touched item
           for (const p of data.tasks) {
             const d = data.decisions[p.id];
             if (isTouched(d) && d.status !== "in_progress") {
@@ -2777,9 +2777,9 @@ document.addEventListener("click", async (e) => {
 
     try {
       await navigator.clipboard.writeText("/execute-all");
-      toast(`Started ${agentsToQueue.length} agent${agentsToQueue.length === 1 ? "" : "s"} Â· /execute-all copied`);
+      toast(`Started ${agentsToQueue.length} agent${agentsToQueue.length === 1 ? "" : "s"} · /execute-all copied`);
     } catch {
-      toast(`Started ${agentsToQueue.length} agents Â· run /execute-all in Claude Code`);
+      toast(`Started ${agentsToQueue.length} agents · run /execute-all in Claude Code`);
     }
 
     setTimeout(() => btn.classList.remove("btn-firing"), 900);
@@ -2787,7 +2787,7 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  // Reply button â€” open modal
+  // Reply button — open modal
   const replyBtn = e.target.closest("[data-action='open-reply']");
   if (replyBtn) {
     openReplyModal(replyBtn.dataset.propId, replyBtn.dataset.agent);
@@ -2803,8 +2803,8 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  // Inbox agent filter â€” multi-select. "All" clears the set; clicking an
-  // agent toggles its membership. Shift/Ctrl/Cmd is optional â€” every click
+  // Inbox agent filter — multi-select. "All" clears the set; clicking an
+  // agent toggles its membership. Shift/Ctrl/Cmd is optional — every click
   // is additive, since that's the common case for "show me CS + CRO".
   const agentFilterBtn = e.target.closest("[data-inbox-agent]");
   if (agentFilterBtn) {
@@ -2820,7 +2820,7 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  // Inbox add-task button â€” toggle form visibility
+  // Inbox add-task button — toggle form visibility
   if (e.target.id === "inbox-add-task") {
     const form = document.getElementById("inbox-add-form");
     if (form) {
@@ -2917,7 +2917,7 @@ document.addEventListener("click", async (e) => {
 
   // (show-closed checkbox handled by the document `change` listener)
 
-  // Coverage card expand/collapse â€” lazy-fetches proposals + tasks for one company
+  // Coverage card expand/collapse — lazy-fetches proposals + tasks for one company
   const covExpandBtn = e.target.closest("[data-cov-expand]");
   if (covExpandBtn) {
     e.preventDefault();
@@ -2933,7 +2933,7 @@ document.addEventListener("click", async (e) => {
   }
 });
 
-// â”€â”€â”€ Kanban due-date picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Kanban due-date picker ─────────────────────────────────────
 // Click the "+ date" chip (or an existing date chip) on a kanban card to
 // schedule / reschedule / clear it. Uses a hidden <input type="date"> that
 // floats over the card momentarily, calls showPicker() where supported, and
@@ -2973,7 +2973,7 @@ document.addEventListener("click", async (e) => {
 
   // Commit on change; escape key cancels.
   input.addEventListener("change", async () => {
-    const next = input.value || null; // "" â†’ null = clear
+    const next = input.value || null; // "" → null = clear
     cleanup();
     if (next === existing || (next === null && !existing)) return;
     await setDueDate(agentId, propId, next);
@@ -3021,7 +3021,7 @@ async function setDueDate(agentId, propId, dueDate) {
   }
 }
 
-// â”€â”€â”€ Kanban drag & drop â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Kanban drag & drop ────────────────────────────────────────
 let dragState = null;
 
 document.addEventListener("dragstart", (e) => {
@@ -3088,7 +3088,7 @@ document.addEventListener("drop", async (e) => {
   // Optimistic local update
   const data = state.tasksByAgent[agentId];
   if (data) {
-    // Any drop into another column clears due_date â€” server.js does the same
+    // Any drop into another column clears due_date — server.js does the same
     // on the file, but we clear locally so the re-render doesn't snap the
     // card back to Scheduled before the roundtrip completes.
     const p = data.tasks?.find((x) => x.id === propId);
@@ -3098,7 +3098,7 @@ document.addEventListener("drop", async (e) => {
       delete data.decisions[propId];
     } else if (target === "in_progress") {
       const existing = data.decisions[propId] || { thread: [] };
-      // Ensure it's touched â€” if not, stamp a minimal "approved as-is" comment.
+      // Ensure it's touched — if not, stamp a minimal "approved as-is" comment.
       const touched = isTouched(existing);
       data.decisions[propId] = {
         ...existing,
@@ -3130,8 +3130,8 @@ document.addEventListener("drop", async (e) => {
   } catch {}
 });
 
-// â”€â”€â”€ Card action dropdown (Complete / Dismiss) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€â”€ 3-dot menu: toggle dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Card action dropdown (Complete / Dismiss) ───────────────────
+// ─── 3-dot menu: toggle dropdown ─────────────────────────────────
 document.addEventListener("click", (e) => {
   const btn = e.target.closest?.("[data-action='card-menu']");
   if (btn) {
@@ -3194,7 +3194,7 @@ document.addEventListener("click", (e) => {
   document.querySelectorAll(".card-menu-dropdown.open").forEach((m) => m.classList.remove("open"));
 });
 
-// Cron skill toggles per agent (â–¶ button). Persists to localStorage.
+// Cron skill toggles per agent (▶ button). Persists to localStorage.
 // When toggled on, the cron skill counts toward Execute and gets included.
 const cronToggles = new Map();
 try {
@@ -3236,7 +3236,7 @@ async function commitAdhoc(agentId) {
 
 // In-memory drafts keyed by propId. Persist to localStorage so a refresh
 // doesn't lose typed text. Committed to the server only when Matt clicks
-// Yes/No/Execute on this proposal â€” that's the natural "I'm done typing" signal.
+// Yes/No/Execute on this proposal — that's the natural "I'm done typing" signal.
 const threadDrafts = new Map();
 try {
   const saved = JSON.parse(localStorage.getItem("mc_thread_drafts") || "{}");
@@ -3253,7 +3253,7 @@ async function commitDraft(agentId, propId) {
   threadDrafts.delete(propId);
   persistDrafts();
   // Wipe any live DOM textareas for this propId so snapshotDrafts() can't
-  // re-capture stale text on the next render (defensive â€” handles the case
+  // re-capture stale text on the next render (defensive — handles the case
   // where the user typed more characters during the await below).
   document
     .querySelectorAll(`.proposal[data-prop-id="${CSS.escape(propId)}"] [data-action="thread-draft"]`)
@@ -3413,7 +3413,7 @@ async function executeAgent(agentId) {
   try {
     await fetch(`api/agents/${agentId}/queue`, { method: "POST" });
   } catch {}
-  // Local optimistic update â€” queue any touched item
+  // Local optimistic update — queue any touched item
   if (data) {
     for (const p of data.tasks) {
       const d = data.decisions[p.id];
@@ -3425,7 +3425,7 @@ async function executeAgent(agentId) {
   try {
     await navigator.clipboard.writeText(cmds);
     const label = cronCmd ? `${execCmd} + ${cronCmd}` : execCmd;
-    toast(`Copied ${label} â€” paste into Claude Code`);
+    toast(`Copied ${label} — paste into Claude Code`);
   } catch {
     toast(`Run in Claude Code:\n${cmds}`);
   }
@@ -3442,16 +3442,16 @@ async function pollExecute(agentId, runId) {
       if (terminal.includes(info.status)) {
         clearInterval(interval);
         delete state.runningExecutes[agentId];
-        if (info.status === "completed") toast("âœ“ Execution complete");
-        else if (info.status === "no-op") toast("âš  Claude exited without doing the work â€” see History for details");
-        else toast("âœ— Execution failed");
+        if (info.status === "completed") toast("✓ Execution complete");
+        else if (info.status === "no-op") toast("⚠ Claude exited without doing the work — see History for details");
+        else toast("✗ Execution failed");
         await loadAll();
       }
     } catch {}
   }, 3000);
 }
 
-// â”€â”€â”€ Database tab (Postgres browser with inline editing) â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Database tab (Postgres browser with inline editing) ────────
 const DB_ENUMS = {
   stage: ['target','prospect','discovery','demo','proposal','negotiation','on-hold-warm','closed-won','closed-lost'],
   action_status: ['Action Needed','No Action'],
@@ -3506,7 +3506,7 @@ const DB_PK = {
   intel: 'entry_id', reports: 'report_id',
   timeline: 'entry_id',
 };
-// API table name (for PATCH URL â€” some tables use different names in the route vs API)
+// API table name (for PATCH URL — some tables use different names in the route vs API)
 const DB_API_TABLE = {
   linkedin: 'linkedin_posts', intel: 'influencer_intel', reports: 'daily_reports',
 };
@@ -3631,20 +3631,20 @@ async function renderDb(activeId) {
   view.innerHTML = `
     <div class="db-shell${isKanban ? " db-shell--kanban" : ""}">
       <section class="db-main${isKanban ? " db-main--kanban" : ""}" id="db-main">
-        <div class="db-loading">Loadingâ€¦</div>
+        <div class="db-loading">Loading…</div>
       </section>
     </div>
   `;
   await renderDbTable(activeId);
 }
 
-// â”€â”€â”€ Global app sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Global app sidebar ───────────────────────────────────────────
 // Renders the unified left sidebar nav: primary views (Agents/Inbox/History/
 // GitHub) + Database section with Sales/Content/Operations sub-groups. Called
 // from route() on every navigation so active states stay synced.
 const APP_PRIMARY_NAV = [
   { id: "grid",      label: "Agents",    href: "#/agents",     icon: "\u{1F9E0}" },
-  { id: "inbox",     label: "Tasks",     href: "#/tasks",      icon: "âœ“" },
+  { id: "inbox",     label: "Tasks",     href: "#/tasks",      icon: "✓" },
   { id: "companies", label: "Companies", href: "#/companies",  icon: "\u{1F3E2}" },
   { id: "projects",  label: "Projects",  href: "#/projects",   icon: "\u{1F4CA}" },
   { id: "reports",   label: "Reports",   href: "#/reports",    icon: "\u{1F4CB}" },
@@ -3656,7 +3656,7 @@ async function renderAppSidebar(activeView, activeDbId) {
   const slot = document.getElementById("app-sidebar-nav");
   if (!slot) return;
 
-  // Pull DB stats lazily â€” don't block sidebar render on the network call
+  // Pull DB stats lazily — don't block sidebar render on the network call
   if (!dbStats) {
     loadDbStats().then(() => {
       // Re-render once stats arrive so badges populate
@@ -3719,7 +3719,7 @@ document.addEventListener("click", (e) => {
   localStorage.setItem("mc_app_sidebar_collapsed", isCollapsed ? "1" : "0");
   btn.title = isCollapsed ? "Expand sidebar" : "Collapse sidebar";
   const icon = btn.querySelector(".app-sidebar-toggle-icon");
-  if (icon) icon.textContent = isCollapsed ? "â˜°" : "â—€";
+  if (icon) icon.textContent = isCollapsed ? "☰" : "◀";
 });
 
 // Apply persisted collapse state on load (before first paint of sidebar contents)
@@ -3729,7 +3729,7 @@ if (localStorage.getItem("mc_app_sidebar_collapsed") === "1") {
   if (btn) {
     btn.title = "Expand sidebar";
     const icon = btn.querySelector(".app-sidebar-toggle-icon");
-    if (icon) icon.textContent = "â˜°";
+    if (icon) icon.textContent = "☰";
   }
 }
 
@@ -3780,7 +3780,7 @@ async function renderDbTable(id) {
   }
 }
 
-// â”€â”€â”€ Contacts: grouped-by-company view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Contacts: grouped-by-company view ─────────────────────────
 async function renderDbContactsGrouped(mount) {
   const q = state.dbContactsSearch || "";
   const role = state.dbContactsRole || "";
@@ -3830,11 +3830,11 @@ async function renderDbContactsGrouped(mount) {
     return `
       <li class="db-contact-row" data-contact-id="${escapeHtml(x.contact_id)}">
         <span class="db-contact-row-name">${escapeHtml(x.name || "Unknown")}</span>
-        <span class="db-contact-row-title">${x.title ? escapeHtml(x.title) : '<span class="db-null">â€”</span>'}</span>
-        <span class="db-contact-row-role">${x.role ? `<span class="db-contact-role ${roleClass(x.role)}">${escapeHtml(x.role)}</span>` : '<span class="db-null">â€”</span>'}</span>
-        <span class="db-contact-row-email">${x.email ? `<a href="mailto:${escapeHtml(x.email)}">${escapeHtml(x.email)}</a>` : '<span class="db-null">â€”</span>'}</span>
-        <span class="db-contact-row-phone">${x.phone ? escapeHtml(x.phone) : (x.phone_office ? escapeHtml(x.phone_office) : '<span class="db-null">â€”</span>')}</span>
-        <span class="db-contact-row-touch">${touchLabel ? `<span class="db-contact-touch touch-${touchTone(touch)}" title="Last touch">${touchLabel}</span>` : '<span class="db-null">â€”</span>'}</span>
+        <span class="db-contact-row-title">${x.title ? escapeHtml(x.title) : '<span class="db-null">—</span>'}</span>
+        <span class="db-contact-row-role">${x.role ? `<span class="db-contact-role ${roleClass(x.role)}">${escapeHtml(x.role)}</span>` : '<span class="db-null">—</span>'}</span>
+        <span class="db-contact-row-email">${x.email ? `<a href="mailto:${escapeHtml(x.email)}">${escapeHtml(x.email)}</a>` : '<span class="db-null">—</span>'}</span>
+        <span class="db-contact-row-phone">${x.phone ? escapeHtml(x.phone) : (x.phone_office ? escapeHtml(x.phone_office) : '<span class="db-null">—</span>')}</span>
+        <span class="db-contact-row-touch">${touchLabel ? `<span class="db-contact-touch touch-${touchTone(touch)}" title="Last touch">${touchLabel}</span>` : '<span class="db-null">—</span>'}</span>
       </li>`;
   };
 
@@ -3843,7 +3843,7 @@ async function renderDbContactsGrouped(mount) {
     return `
       <section class="db-contacts-group ${collapsed ? "collapsed" : ""}" data-company-id="${escapeHtml(g.company_id)}">
         <header class="db-contacts-group-head" data-toggle-company="${escapeHtml(g.company_id)}">
-          <span class="db-contacts-group-caret">${collapsed ? "â–¸" : "â–¾"}</span>
+          <span class="db-contacts-group-caret">${collapsed ? "▸" : "▾"}</span>
           <a href="#/db/companies/${escapeHtml(g.company_slug || g.company_id)}" class="db-contacts-group-name" onclick="event.stopPropagation()">${escapeHtml(g.company_name)}</a>
           ${stagePill(g.stage)}
           <span class="db-contacts-group-count">${g.contacts.length}</span>
@@ -3866,11 +3866,11 @@ async function renderDbContactsGrouped(mount) {
   mount.innerHTML = `
     <div class="db-contacts-toolbar">
       <div class="db-contacts-toolbar-left">
-        <input type="search" class="db-contacts-search" placeholder="Search name, email, title, companyâ€¦" value="${escapeHtml(q)}" />
+        <input type="search" class="db-contacts-search" placeholder="Search name, email, title, company…" value="${escapeHtml(q)}" />
         <select class="db-contacts-role-filter">${roleOptionsHtml}</select>
       </div>
       <div class="db-contacts-toolbar-right">
-        <span class="db-table-meta">${groups.length} compan${groups.length === 1 ? "y" : "ies"} Â· ${totalContacts} contact${totalContacts === 1 ? "" : "s"}</span>
+        <span class="db-table-meta">${groups.length} compan${groups.length === 1 ? "y" : "ies"} · ${totalContacts} contact${totalContacts === 1 ? "" : "s"}</span>
         <button class="btn-ghost" data-db-contacts-mode="table">Table view</button>
       </div>
     </div>
@@ -3880,10 +3880,10 @@ async function renderDbContactsGrouped(mount) {
 
 function renderDbTableHtml(id, rows) {
   const fmtDisplay = (v) => {
-    if (v == null) return '<span class="db-null">â€”</span>';
-    if (Array.isArray(v)) return v.length ? escapeHtml(v.join(", ")) : '<span class="db-null">â€”</span>';
+    if (v == null) return '<span class="db-null">—</span>';
+    if (Array.isArray(v)) return v.length ? escapeHtml(v.join(", ")) : '<span class="db-null">—</span>';
     if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)) return v.slice(0, 10);
-    if (typeof v === "string" && v.length > 80) return escapeHtml(v.slice(0, 80)) + "â€¦";
+    if (typeof v === "string" && v.length > 80) return escapeHtml(v.slice(0, 80)) + "…";
     return escapeHtml(String(v));
   };
 
@@ -3923,9 +3923,9 @@ function renderDbTableHtml(id, rows) {
         return `<td class="db-cell-edit" data-table="${id}" data-pk="${rowId}" data-col="${c}" data-enum="${enumKey || ""}" data-date="${isDate ? 1 : ""}" data-val="${escapeHtml(String(safeRaw))}">${displayVal}</td>`;
       }).join("");
       const detailLink = id === "companies" && row.slug
-        ? `<a href="#/db/companies/${row.slug}" class="db-detail-link" title="Detail">â†’</a>`
+        ? `<a href="#/db/companies/${row.slug}" class="db-detail-link" title="Detail">→</a>`
         : "";
-      const delBtn = `<button class="db-del-btn" data-table="${id}" data-pk="${rowId}" title="Delete">Ã—</button>`;
+      const delBtn = `<button class="db-del-btn" data-table="${id}" data-pk="${rowId}" title="Delete">×</button>`;
       return `<tr class="db-row">${tds}<td class="db-cell-actions">${detailLink}${delBtn}</td></tr>`;
     })
     .join("");
@@ -3946,7 +3946,7 @@ function renderDbTableHtml(id, rows) {
   `;
 }
 
-// â”€â”€â”€ Companies Kanban view (by pipeline stage) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Companies Kanban view (by pipeline stage) ─────────────────
 const STAGE_COLS = [
   { key: "target",       label: "Target",       tone: "target" },
   { key: "prospect",     label: "Prospect",     tone: "prospect" },
@@ -3977,7 +3977,7 @@ function renderDbCompaniesKanban(rows, opts = {}) {
   // Exclude only the explicit CS-owned closed-won clients (they shouldn't appear on a deal pipeline).
   const filtered = rows.filter((r) => r.owning_agent !== "cs");
 
-  // Visible stages â€” hide closed columns unless toggled on
+  // Visible stages — hide closed columns unless toggled on
   const visibleStages = STAGE_COLS.filter(s => showClosed || !s.key.startsWith("closed-"));
 
   // Bucket by stage
@@ -4008,7 +4008,7 @@ function renderDbCompaniesKanban(rows, opts = {}) {
 
   // Concise days label for the right-side pill
   const daysLabel = (d) => {
-    if (d == null) return "â€”";
+    if (d == null) return "—";
     if (d === 0) return "today";
     if (d === 1) return "1d";
     if (d < 30) return `${d}d`;
@@ -4016,7 +4016,7 @@ function renderDbCompaniesKanban(rows, opts = {}) {
     return `${Math.round(d / 365)}y`;
   };
 
-  // Card markup â€” clean two-row layout: name + days pill on top, optional next-action below.
+  // Card markup — clean two-row layout: name + days pill on top, optional next-action below.
   const renderCard = (r) => {
     const tone = staleTone(r.days_since_contact);
     const taskCount = Number(r.open_task_count || 0);
@@ -4077,7 +4077,7 @@ function renderDbCompaniesKanban(rows, opts = {}) {
         </div>
         <div class="kc-toolbar-stat-inline">
           <span class="kc-toolbar-stat-num">${totals.pipeline}</span> pipeline deals
-          ${totals.uncovered ? `<span class="kc-toolbar-stat-divider">Â·</span><span class="kc-toolbar-stat--alert-inline">${totals.uncovered} uncovered</span>` : ""}
+          ${totals.uncovered ? `<span class="kc-toolbar-stat-divider">·</span><span class="kc-toolbar-stat--alert-inline">${totals.uncovered} uncovered</span>` : ""}
         </div>
         <div class="kc-toolbar-spacer"></div>
         <div class="kc-toolbar-group kc-toolbar-group--toggle">
@@ -4139,7 +4139,7 @@ function renderDbMeetingsHtml(rows) {
       ? `<a href="#/db/companies/${x.company_slug}" class="db-detail-link" data-stop>${escapeHtml(x.company_name || "")}</a>`
       : '<span class="db-null">Set company</span>';
     const matchBtn = x.meeting_id
-      ? `<button class="db-match-btn" data-meeting-id="${x.meeting_id}" title="Re-match company with AI">âœ¨</button>`
+      ? `<button class="db-match-btn" data-meeting-id="${x.meeting_id}" title="Re-match company with AI">✨</button>`
       : "";
     const companyCell = x.meeting_id
       ? `<td class="db-cell-edit-company" data-table="meetings" data-pk="${x.meeting_id}" data-col="company_id" data-val="${escapeHtml(x.company_slug || "")}">${companyDisplay} ${matchBtn}</td>`
@@ -4152,10 +4152,10 @@ function renderDbMeetingsHtml(rows) {
       ? `<a href="${escapeHtml(recordingUrl)}" target="_blank" rel="noopener" class="db-name-link" title="Open recording">${titleText}</a>`
       : (x.meeting_id ? `<a href="#/db/meetings/${x.meeting_id}" class="db-name-link">${titleText}</a>` : titleText);
 
-    // Fathom recording link â€” Share URL preferred, fall back to raw recording URL.
+    // Fathom recording link — Share URL preferred, fall back to raw recording URL.
     const fathomUrl = x.share_url || x.recording_url || "";
     const fathomCell = fathomUrl
-      ? `<a href="${escapeHtml(fathomUrl)}" target="_blank" rel="noopener" data-stop class="db-fathom-link-btn" title="Open Fathom recording">Fathom â†—</a>`
+      ? `<a href="${escapeHtml(fathomUrl)}" target="_blank" rel="noopener" data-stop class="db-fathom-link-btn" title="Open Fathom recording">Fathom ↗</a>`
       : '<span class="db-null">-</span>';
 
     // Status column shows meeting type \u2014 null/"completed" both render as dash.
@@ -4705,7 +4705,7 @@ async function loadEmailBody(emailId, containerEl) {
   }
 }
 
-// â”€â”€â”€ DB click delegation: inline edit, delete, add, detail nav â”€â”€
+// ─── DB click delegation: inline edit, delete, add, detail nav ──
 document.addEventListener("click", (e) => {
   // Detail link
   const detLink = e.target.closest(".db-detail-link");
@@ -4852,29 +4852,29 @@ document.addEventListener("click", (e) => {
     e.preventDefault();
     const meetingId = matchBtnEl.dataset.meetingId;
     matchBtnEl.disabled = true;
-    matchBtnEl.textContent = "â€¦";
+    matchBtnEl.textContent = "…";
     fetch(`api/db/meetings/${meetingId}/match`, { method: "POST" })
       .then(r => r.json())
       .then(j => {
         if (j.matched) {
-          toast(`Matched â†’ ${j.company.name}`);
+          toast(`Matched → ${j.company.name}`);
           dbStats = null; route();
         } else {
           toast(`No match (${j.method})`);
           matchBtnEl.disabled = false;
-          matchBtnEl.textContent = "âœ¨";
+          matchBtnEl.textContent = "✨";
         }
       })
       .catch(err => {
         toast("Error: " + err.message);
         matchBtnEl.disabled = false;
-        matchBtnEl.textContent = "âœ¨";
+        matchBtnEl.textContent = "✨";
       });
     return;
   }
 
   // Inline company picker for meeting rows. We let the link inside still navigate
-  // (data-stop on the <a>) â€” clicking elsewhere in the cell opens the picker.
+  // (data-stop on the <a>) — clicking elsewhere in the cell opens the picker.
   const companyCell = e.target.closest("td.db-cell-edit-company");
   if (companyCell && !e.target.closest("[data-stop]") && !companyCell.querySelector("input, select")) {
     e.stopPropagation();
@@ -4883,7 +4883,7 @@ document.addEventListener("click", (e) => {
     const openPicker = (companies) => {
       const sel = document.createElement("select");
       sel.className = "db-inline-select";
-      sel.innerHTML = `<option value="">â€” none â€”</option>` +
+      sel.innerHTML = `<option value="">— none —</option>` +
         companies.map(c => `<option value="${escapeHtml(c.slug)}" ${c.slug === val ? "selected" : ""}>${escapeHtml(c.name)}</option>`).join("");
       companyCell.textContent = "";
       companyCell.appendChild(sel);
@@ -4930,7 +4930,7 @@ document.addEventListener("click", (e) => {
       // Dropdown
       const sel = document.createElement("select");
       sel.className = "db-inline-select";
-      sel.innerHTML = `<option value="">â€”</option>` +
+      sel.innerHTML = `<option value="">—</option>` +
         DB_ENUMS[enumKey].map((o) => `<option value="${escapeHtml(o)}" ${o === val ? "selected" : ""}>${escapeHtml(o)}</option>`).join("");
       cell.textContent = "";
       cell.appendChild(sel);
@@ -4995,7 +4995,7 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// â”€â”€â”€ DB companies mode toggle (table vs kanban) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── DB companies mode toggle (table vs kanban) ────────────────
 // Supports both the old button toggle and the new sidebar select
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-db-companies-mode]");
@@ -5032,7 +5032,7 @@ document.addEventListener("change", (e) => {
   }
 });
 
-// â”€â”€â”€ DB contacts: grouped/table toggle, search, role filter, collapse â”€â”€â”€
+// ─── DB contacts: grouped/table toggle, search, role filter, collapse ───
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-db-contacts-mode]");
   if (btn) {
@@ -5056,7 +5056,7 @@ document.addEventListener("click", (e) => {
   }
 });
 
-// Debounced live search â€” re-render the grouped view without re-routing.
+// Debounced live search — re-render the grouped view without re-routing.
 (function () {
   let t = null;
   document.addEventListener("input", (e) => {
@@ -5087,7 +5087,7 @@ document.addEventListener("change", (e) => {
   if (main) renderDbContactsGrouped(main);
 });
 
-// â”€â”€â”€ DB kanban scrollbar proxy + header sync â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── DB kanban scrollbar proxy + header sync ───────────────────
 (function () {
   let syncing = false;
   function setupProxy() {
@@ -5099,7 +5099,7 @@ document.addEventListener("change", (e) => {
     // Size the proxy's inner div to match the wrapper's scroll width
     const inner = proxy.querySelector("div");
     if (inner) inner.style.width = wrap.scrollWidth + "px";
-    // Sync: proxy â†’ wrapper + header
+    // Sync: proxy → wrapper + header
     proxy.onscroll = () => {
       if (syncing) return;
       syncing = true;
@@ -5107,7 +5107,7 @@ document.addEventListener("change", (e) => {
       if (hdr) hdr.scrollLeft = proxy.scrollLeft;
       syncing = false;
     };
-    // Sync: wrapper â†’ proxy + header (e.g. trackpad horizontal scroll)
+    // Sync: wrapper → proxy + header (e.g. trackpad horizontal scroll)
     wrap.onscroll = () => {
       if (syncing) return;
       syncing = true;
@@ -5131,7 +5131,7 @@ document.addEventListener("change", (e) => {
   window.addEventListener("resize", setupProxy);
 })();
 
-// â”€â”€â”€ Inbox kanban scrollbar proxy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Inbox kanban scrollbar proxy ──────────────────────────────
 // Mirror of the db-kanban proxy, scoped to the inbox/tasks kanban.
 // Fixed scrollbar at the bottom of the viewport that scrolls the
 // kanban board horizontally. Hidden when the inbox isn't in kanban mode.
@@ -5171,7 +5171,7 @@ document.addEventListener("change", (e) => {
   window.addEventListener("resize", setupProxy);
 })();
 
-// â”€â”€â”€ DB kanban pointer-based drag (Notion-style) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── DB kanban pointer-based drag (Notion-style) ───────────────
 (function () {
   let dragState = null; // { card, clone, companyId, offsetX, offsetY, startCol }
 
@@ -5292,7 +5292,7 @@ document.addEventListener("change", (e) => {
       const oldStage = srcCol?.dataset.stage;
       if (!newStage || newStage === oldStage) return;
 
-      // Optimistic DOM move â€” no full re-render, no flicker
+      // Optimistic DOM move — no full re-render, no flicker
       const targetBody = col.querySelector(".kanban-col-body");
       const sourceBody = srcCol?.querySelector(".kanban-col-body");
       if (targetBody) {
@@ -5304,7 +5304,7 @@ document.addEventListener("change", (e) => {
         const hdrRow = document.querySelector(".db-kanban-header-row");
         const hdrCols = hdrRow ? hdrRow.querySelectorAll(".kanban-col-head") : [];
         const stageKeys = document.querySelectorAll(".db-kanban-board .kanban-col");
-        // Build stageâ†’header index
+        // Build stage→header index
         const hdrByStage = {};
         stageKeys.forEach((c, i) => { if (hdrCols[i]) hdrByStage[c.dataset.stage] = hdrCols[i]; });
         const tHdr = hdrByStage[newStage];
@@ -5331,7 +5331,7 @@ document.addEventListener("change", (e) => {
   });
 })();
 
-// â”€â”€â”€ Add-row modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Add-row modal ──────────────────────────────────────────────
 function showDbAddModal(tableId) {
   const ADD_FIELDS = {
     companies: ['name','stage','field','next_action','last_contact','action_status'],
@@ -5358,7 +5358,7 @@ function showDbAddModal(tableId) {
           const label = f.replace(/_/g, " ");
           if (enumKey && DB_ENUMS[enumKey]) {
             return `<label>${label}<select name="${f}" class="db-inline-select">
-              <option value="">â€”</option>
+              <option value="">—</option>
               ${DB_ENUMS[enumKey].map((o) => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("")}
             </select></label>`;
           }
@@ -5417,9 +5417,9 @@ function roleClass(role) {
   return "role-" + (role || "user").toLowerCase().replace(/\s+/g, "-");
 }
 
-// â”€â”€â”€ GitHub dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── GitHub dashboard ───────────────────────────────────────────
 function ghTimeAgo(iso) {
-  if (!iso) return "â€”";
+  if (!iso) return "—";
   const then = new Date(iso);
   const diffS = Math.floor((Date.now() - then.getTime()) / 1000);
   if (diffS < 60) return `${diffS}s ago`;
@@ -5438,12 +5438,12 @@ function ghBranchPill(devVsProd) {
   if (!devVsProd) return `<span class="gh-pill gh-pill--muted">no dev branch</span>`;
   const { devBranch, defaultBranch, ahead, behind } = devVsProd;
   if (ahead === 0 && behind === 0) {
-    return `<span class="gh-pill gh-pill--ok">${escapeHtml(devBranch)} â‰¡ ${escapeHtml(defaultBranch)}</span>`;
+    return `<span class="gh-pill gh-pill--ok">${escapeHtml(devBranch)} ≡ ${escapeHtml(defaultBranch)}</span>`;
   }
   const parts = [];
-  if (ahead > 0) parts.push(`<span class="gh-ahead">â†‘${ahead}</span>`);
-  if (behind > 0) parts.push(`<span class="gh-behind">â†“${behind}</span>`);
-  return `<span class="gh-pill">${escapeHtml(devBranch)} â†’ ${escapeHtml(defaultBranch)} Â· ${parts.join(" ")}</span>`;
+  if (ahead > 0) parts.push(`<span class="gh-ahead">↑${ahead}</span>`);
+  if (behind > 0) parts.push(`<span class="gh-behind">↓${behind}</span>`);
+  return `<span class="gh-pill">${escapeHtml(devBranch)} → ${escapeHtml(defaultBranch)} · ${parts.join(" ")}</span>`;
 }
 
 const GH_ENABLED_KEY = "gh.enabledRepos";
@@ -5472,14 +5472,14 @@ async function renderGithubRepos() {
         <div>
           <div class="inbox-eyebrow">Source control</div>
           <h1 class="inbox-title">GitHub</h1>
-          <div class="inbox-summary" id="gh-summary">Loadingâ€¦</div>
+          <div class="inbox-summary" id="gh-summary">Loading…</div>
         </div>
         <div class="gh-header-actions">
-          <button class="btn-ghost" id="gh-settings">âš™ Repos</button>
-          <button class="btn-ghost" id="gh-refresh">â†» Refresh</button>
+          <button class="btn-ghost" id="gh-settings">⚙ Repos</button>
+          <button class="btn-ghost" id="gh-refresh">↻ Refresh</button>
         </div>
       </div>
-      <div class="gh-grid" id="gh-grid"><div class="gh-empty">Fetching reposâ€¦</div></div>
+      <div class="gh-grid" id="gh-grid"><div class="gh-empty">Fetching repos…</div></div>
     </div>
   `;
 
@@ -5503,17 +5503,17 @@ async function renderGithubRepos() {
   }
 
   // Only show enabled repos in the grid. Filter client-side against the enabled
-  // set as well (belt-and-suspenders â€” server also filters when it's been
+  // set as well (belt-and-suspenders — server also filters when it's been
   // restarted with the enabled-param code, but if it hasn't, this still works).
   const allRepos = data.repos || [];
   const enabledSet = new Set(enabled);
   const repos = allRepos.filter((r) => !r.disabled && enabledSet.has(r.name));
   const hiddenCount = allRepos.length - repos.length;
-  const hiddenNote = hiddenCount > 0 ? ` Â· ${hiddenCount} hidden` : "";
-  $("#gh-summary").textContent = `${repos.length} repos${hiddenNote} Â· ${data.owner} Â· fetched ${ghTimeAgo(data.fetched_at)}`;
+  const hiddenNote = hiddenCount > 0 ? ` · ${hiddenCount} hidden` : "";
+  $("#gh-summary").textContent = `${repos.length} repos${hiddenNote} · ${data.owner} · fetched ${ghTimeAgo(data.fetched_at)}`;
 
   if (!repos.length) {
-    $("#gh-grid").innerHTML = `<div class="gh-empty">No repos enabled. Click âš™ Repos to pick some.</div>`;
+    $("#gh-grid").innerHTML = `<div class="gh-empty">No repos enabled. Click ⚙ Repos to pick some.</div>`;
     return;
   }
 
@@ -5522,7 +5522,7 @@ async function renderGithubRepos() {
       ? `<span class="gh-pr-badge">${r.openPRs} PR${r.openPRs === 1 ? "" : "s"}</span>`
       : "";
 
-    // Hero sync status â€” the big visual answer to "are dev and prod synced?"
+    // Hero sync status — the big visual answer to "are dev and prod synced?"
     let syncHero;
     if (!r.devVsProd) {
       syncHero = `
@@ -5536,18 +5536,18 @@ async function renderGithubRepos() {
       if (ahead === 0 && behind === 0) {
         tone = "ok";
         headline = "In sync";
-        sub = `<code>${escapeHtml(devBranch)}</code> â‰¡ <code>${escapeHtml(defaultBranch)}</code>`;
+        sub = `<code>${escapeHtml(devBranch)}</code> ≡ <code>${escapeHtml(defaultBranch)}</code>`;
       } else if (ahead > 0 && behind === 0) {
         tone = "ready";
-        headline = `${ahead} ahead Â· ready to merge`;
-        sub = `<code>${escapeHtml(devBranch)}</code> has ${ahead} unmerged commit${ahead === 1 ? "" : "s"} â†’ <code>${escapeHtml(defaultBranch)}</code>`;
+        headline = `${ahead} ahead · ready to merge`;
+        sub = `<code>${escapeHtml(devBranch)}</code> has ${ahead} unmerged commit${ahead === 1 ? "" : "s"} → <code>${escapeHtml(defaultBranch)}</code>`;
       } else if (behind > 0 && ahead === 0) {
         tone = "stale";
         headline = `${behind} behind`;
         sub = `<code>${escapeHtml(defaultBranch)}</code> is ${behind} commit${behind === 1 ? "" : "s"} ahead of <code>${escapeHtml(devBranch)}</code>`;
       } else {
         tone = "diverged";
-        headline = `Diverged Â· â†‘${ahead} â†“${behind}`;
+        headline = `Diverged · ↑${ahead} ↓${behind}`;
         sub = `<code>${escapeHtml(devBranch)}</code> and <code>${escapeHtml(defaultBranch)}</code> have forked`;
       }
       syncHero = `
@@ -5615,7 +5615,7 @@ async function ghOpenSettings() {
             <input type="checkbox" value="${escapeHtml(r.name)}" ${enabled.has(r.name) ? "checked" : ""}>
             <div class="gh-settings-info">
               <div class="gh-settings-name">${escapeHtml(r.name)}${r.isPrivate ? ` <span class="gh-pill gh-pill--muted">private</span>` : ""}</div>
-              <div class="gh-settings-meta">pushed ${ghTimeAgo(r.pushedAt)}${r.description ? ` Â· ${escapeHtml(r.description.slice(0, 70))}` : ""}</div>
+              <div class="gh-settings-meta">pushed ${ghTimeAgo(r.pushedAt)}${r.description ? ` · ${escapeHtml(r.description.slice(0, 70))}` : ""}</div>
             </div>
           </label>
         `).join("") || '<div class="gh-empty">No repos found</div>'}
@@ -5645,19 +5645,19 @@ async function renderGithubRepo(repo) {
   const view = $("#github-view");
   view.innerHTML = `
     <div class="gh-shell">
-      <a class="db-back-link" href="#/github">â† All repos</a>
+      <a class="db-back-link" href="#/github">← All repos</a>
       <div class="gh-header">
         <div>
           <div class="inbox-eyebrow">Repository</div>
           <h1 class="inbox-title">${escapeHtml(repo)}</h1>
-          <div class="inbox-summary" id="gh-detail-summary">Loadingâ€¦</div>
+          <div class="inbox-summary" id="gh-detail-summary">Loading…</div>
         </div>
         <div class="gh-header-actions">
-          <a class="btn-ghost" id="gh-open-link" target="_blank" rel="noopener">Open on GitHub â†—</a>
-          <button class="btn-ghost" id="gh-refresh">â†» Refresh</button>
+          <a class="btn-ghost" id="gh-open-link" target="_blank" rel="noopener">Open on GitHub ↗</a>
+          <button class="btn-ghost" id="gh-refresh">↻ Refresh</button>
         </div>
       </div>
-      <div id="gh-detail-body"><div class="gh-empty">Loadingâ€¦</div></div>
+      <div id="gh-detail-body"><div class="gh-empty">Loading…</div></div>
     </div>
   `;
 
@@ -5683,7 +5683,7 @@ async function renderGithubRepo(repo) {
   const defaultBranch = info.default_branch;
 
   $("#gh-detail-summary").textContent =
-    `${branches.length} branches Â· ${prs.length} open PRs Â· pushed ${ghTimeAgo(info.pushed_at)}`;
+    `${branches.length} branches · ${prs.length} open PRs · pushed ${ghTimeAgo(info.pushed_at)}`;
   const link = $("#gh-open-link");
   if (info.html_url) link.href = info.html_url;
   else link.style.display = "none";
@@ -5705,7 +5705,7 @@ async function renderGithubRepo(repo) {
       ? `<span class="gh-pill gh-pill--default">default</span>`
       : (ahead === 0 && behind === 0)
         ? `<span class="gh-pill gh-pill--ok">in sync</span>`
-        : `<span class="gh-pill">${ahead > 0 ? `<span class="gh-ahead">â†‘${ahead}</span>` : ""}${behind > 0 ? ` <span class="gh-behind">â†“${behind}</span>` : ""}</span>`;
+        : `<span class="gh-pill">${ahead > 0 ? `<span class="gh-ahead">↑${ahead}</span>` : ""}${behind > 0 ? ` <span class="gh-behind">↓${behind}</span>` : ""}</span>`;
     const msg = b.commit?.msg || "";
     return `
       <tr>
@@ -5724,7 +5724,7 @@ async function renderGithubRepo(repo) {
         <tr>
           <td><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">#${p.number}</a></td>
           <td class="gh-commit-msg">${p.draft ? `<span class="gh-pill gh-pill--muted">draft</span> ` : ""}${escapeHtml(p.title)}</td>
-          <td>${escapeHtml(p.head)} â†’ ${escapeHtml(p.base)}</td>
+          <td>${escapeHtml(p.head)} → ${escapeHtml(p.base)}</td>
           <td class="gh-commit-meta">${escapeHtml(p.author)}</td>
           <td class="gh-commit-meta">${ghTimeAgo(p.updated_at)}</td>
         </tr>
@@ -5773,15 +5773,15 @@ async function renderGithubRepo(repo) {
   `;
 }
 
-// â”€â”€â”€ Company Coverage view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Company Coverage view ─────────────────────────────────────
 // One row per active CRO deal or CS client. Red rows are uncovered
-// (no active proposal AND no open task) â€” those are the gaps that
+// (no active proposal AND no open task) — those are the gaps that
 // silently dropped off Matt's radar. Sorted: uncovered first, then
 // by risk, then by days since contact.
 // Top-level dispatcher for the unified Companies tab. Three modes:
-//   coverage â€” coverage matrix with uncovered alerts (default)
-//   table    â€” Postgres companies table (full schema, sortable, editable)
-//   kanban   â€” companies grouped by stage as kanban columns
+//   coverage — coverage matrix with uncovered alerts (default)
+//   table    — Postgres companies table (full schema, sortable, editable)
+//   kanban   — companies grouped by stage as kanban columns
 // Mode persisted in localStorage so refresh keeps Matt where he was.
 async function renderCompanyCoverage() {
   const main = $("#companies-view");
@@ -5812,7 +5812,7 @@ async function renderCompanyCoverage() {
       ${isKanban ? "" : topToggle}
       <div class="db-shell${isKanban ? " db-shell--kanban" : ""}">
         <section class="db-main${isKanban ? " db-main--kanban" : ""}" id="db-main">
-          <div class="db-loading">Loadingâ€¦</div>
+          <div class="db-loading">Loading…</div>
         </section>
       </div>
     `;
@@ -5821,7 +5821,7 @@ async function renderCompanyCoverage() {
   }
 
   // mode === "coverage"
-  main.innerHTML = `${topToggle}<div class="cov-loading">Loading company coverageâ€¦</div>`;
+  main.innerHTML = `${topToggle}<div class="cov-loading">Loading company coverage…</div>`;
 
   let companies = [];
   try {
@@ -5864,7 +5864,7 @@ async function renderCompanyCoverage() {
         <span class="cov-summary-item cov-summary-item--alert">${uncoveredCount} uncovered</span>
         <span class="cov-summary-item">${visible.length} ${filter === "all" ? "total" : filter}</span>
       </div>
-      <p class="cov-subtitle">Click a card to see what's in motion. Red cards have no plan and no tasks â€” those are the gaps.</p>
+      <p class="cov-subtitle">Click a card to see what's in motion. Red cards have no plan and no tasks — those are the gaps.</p>
     </div>
     <div class="cov-cards">
       ${cards || `<div class="cov-empty">No active companies</div>`}
@@ -5900,13 +5900,13 @@ function renderCovCard(c) {
   const latestLine = !c.is_uncovered && c.latest_task_title
     ? `<div class="cov-card-latest">Latest: ${escapeHtml(truncate(c.latest_task_title, 90))}</div>`
     : c.is_uncovered
-    ? `<div class="cov-card-alert">No plan in motion â€” needs attention</div>`
+    ? `<div class="cov-card-alert">No plan in motion — needs attention</div>`
     : "";
 
   return `
     <div class="${cardClass}" data-cov-slug="${escapeHtml(c.slug)}">
       <button class="cov-card-head" data-cov-expand="${escapeHtml(c.slug)}" aria-expanded="${expanded}">
-        <span class="cov-card-chevron">â–¸</span>
+        <span class="cov-card-chevron">▸</span>
         <div class="cov-card-head-main">
           <div class="cov-card-title-row">
             <span class="cov-card-name">${escapeHtml(c.name)}</span>
@@ -5928,7 +5928,7 @@ function renderCovCard(c) {
         </div>
       </button>
       <div class="cov-card-body" id="cov-body-${escapeHtml(c.slug)}" ${expanded ? "" : "hidden"}>
-        ${expanded ? `<div class="cov-card-loading">Loadingâ€¦</div>` : ""}
+        ${expanded ? `<div class="cov-card-loading">Loading…</div>` : ""}
       </div>
     </div>`;
 }
@@ -5948,7 +5948,7 @@ async function toggleCovCard(slug) {
     if (state.covDetailCache[slug]) {
       body.innerHTML = renderCovCardBody(state.covDetailCache[slug]);
     } else {
-      body.innerHTML = `<div class="cov-card-loading">Loadingâ€¦</div>`;
+      body.innerHTML = `<div class="cov-card-loading">Loading…</div>`;
       await loadCovCardDetail(slug);
     }
   } else {
@@ -6016,10 +6016,10 @@ async function renderCompanyCoverageDetail(slug) {
 
 function truncate(s, n) {
   if (!s) return "";
-  return s.length > n ? s.slice(0, n - 1) + "â€¦" : s;
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
-// â”€â”€â”€ Projects (CS-as-PM portfolio view) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Projects (CS-as-PM portfolio view) ─────────────────────────
 const PROJECT_PRIORITY_RANK = { urgent: 0, high: 1, normal: 2, low: 3 };
 const PROJECT_STATUS_LABEL = {
   active: "Active",
@@ -6041,7 +6041,7 @@ const PROJECT_KIND_LABEL = {
 async function renderProjects() {
   const main = $("#projects-view");
   if (!main) return;
-  main.innerHTML = `<div class="cov-loading">Loading projectsâ€¦</div>`;
+  main.innerHTML = `<div class="cov-loading">Loading projects…</div>`;
 
   let projects = [];
   try {
@@ -6149,7 +6149,7 @@ function renderProjectCard(p) {
 async function renderProjectDetail(projectId) {
   const main = $("#projects-view");
   if (!main) return;
-  main.innerHTML = `<div class="cov-loading">Loading projectâ€¦</div>`;
+  main.innerHTML = `<div class="cov-loading">Loading project…</div>`;
 
   let project = null, tasks = [];
   try {
@@ -6177,7 +6177,7 @@ async function renderProjectDetail(projectId) {
     project.target_date ? `<span><b>Target</b> ${escape(project.target_date)}</span>` : "",
     `<span><b>Stale</b> ${Number(project.days_stale || 0)}d</span>`,
     project.context_doc_path ? `<span><b>Context</b> <code>${escape(project.context_doc_path)}</code></span>` : "",
-  ].filter(Boolean).join(" Â· ");
+  ].filter(Boolean).join(" · ");
 
   const sectionHtml = (label, list, emptyText) => `
     <section class="cov-detail-section">
@@ -6188,10 +6188,10 @@ async function renderProjectDetail(projectId) {
   main.innerHTML = `
     <header class="cov-detail-header">
       <div>
-        <div class="cov-detail-crumb"><a href="#/projects">â† All projects</a></div>
+        <div class="cov-detail-crumb"><a href="#/projects">← All projects</a></div>
         <h1>${escape(project.project_name)}</h1>
         <div class="cov-detail-sub">
-          <a href="#/companies/${escape(project.company_slug)}">${escape(project.company_name)}</a> Â·
+          <a href="#/companies/${escape(project.company_slug)}">${escape(project.company_name)}</a> ·
           <span class="proj-pill proj-pri-${escape(project.priority || "normal")}">${escape((project.priority || "normal").toUpperCase())}</span>
           <span class="proj-pill proj-status-${escape(project.status || "active")}">${escape(PROJECT_STATUS_LABEL[project.status] || project.status || "")}</span>
           <span class="proj-pill proj-kind">${escape(PROJECT_KIND_LABEL[project.kind] || project.kind || "")}</span>
@@ -6210,11 +6210,11 @@ async function renderProjectDetail(projectId) {
   `;
 }
 
-// â”€â”€â”€ Boot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Boot ───────────────────────────────────────────────────────
 setGreeting();
 loadAll().then(() => {
   // Initial notification load is silent (don't toast for events that happened
-  // before Matt opened the dashboard â€” those are "catch up", not live alerts).
+  // before Matt opened the dashboard — those are "catch up", not live alerts).
   pollNotifications({ silent: true });
 });
 setInterval(loadAll, 60000); // soft refresh every minute
