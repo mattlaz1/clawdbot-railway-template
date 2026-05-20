@@ -342,7 +342,7 @@ async function showAgentBriefing(agentId) {
   const agent = state.agents.find((a) => a.id === agentId);
   const title = agent ? `${agent.emoji} ${agent.name} Briefing` : `Briefing`;
   try {
-    const res = await fetch(`api/agents/${agentId}/briefing`);
+    const res = await fetch(`/api/agents/${agentId}/briefing`);
     if (res.status === 404) {
       openBriefingModal({ title, rows: [] });
       return;
@@ -361,7 +361,7 @@ async function loadAgentBriefing(agentId) {
   if (status === "loading" || status === "loaded" || status === "empty") return;
   state.agentBriefingStatus[agentId] = "loading";
   try {
-    const res = await fetch(`api/agents/${agentId}/briefing`);
+    const res = await fetch(`/api/agents/${agentId}/briefing`);
     if (res.status === 404) {
       state.agentBriefingStatus[agentId] = "empty";
       render();
@@ -389,7 +389,7 @@ function ensureVisibleBriefingsLoaded() {
 
 async function showTodaysBriefings() {
   try {
-    const res = await fetch(`api/briefings/today?days=1`);
+    const res = await fetch(`/api/briefings/today?days=1`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const rows = await res.json();
     const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -446,7 +446,7 @@ function fireOsNotification(event) {
     const n = new Notification(event.title || "Mission Control", {
       body: event.summary || `${agentNameById(event.agent_id)} · ${event.type}`,
       tag: event.id,
-      icon: new URL("favicon.png", document.baseURI).toString(),
+      icon: "/favicon.png",
       silent: false,
     });
     n.onclick = () => {
@@ -464,7 +464,7 @@ async function requestOsPermission() {
   state.osNotifPermission = p;
   if (p === "granted") {
     toast("Desktop notifications on.");
-    try { new Notification("Mission Control", { body: "You'll now get alerts when agents fire.", icon: new URL("favicon.png", document.baseURI).toString() }); } catch {}
+    try { new Notification("Mission Control", { body: "You'll now get alerts when agents fire.", icon: "/favicon.png" }); } catch {}
   } else {
     toast("Notifications not enabled.");
   }
@@ -472,7 +472,7 @@ async function requestOsPermission() {
 }
 async function pollNotifications({ silent = false } = {}) {
   try {
-    const res = await fetch(`api/notifications?since=${encodeURIComponent(state.lastSeenTs)}`);
+    const res = await fetch(`/api/notifications?since=${encodeURIComponent(state.lastSeenTs)}`);
     if (!res.ok) return;
     const events = await res.json();
     const seen = new Set(state.notifications.map((e) => e.id));
@@ -914,8 +914,9 @@ function renderActiveCard(agent) {
           data-action="adhoc-input"
           rows="1"
         >${escape(adhocDrafts.get(agent.id) || "")}</textarea>
-        <button class="adhoc-send" data-action="adhoc-send" data-agent-id="${escape(agent.id)}" ${hasAdhoc ? "" : "disabled"} title="Send to ${escape(agent.name)} (pre-approved)">Send</button>
+        <button class="adhoc-send" data-action="adhoc-send" data-agent-id="${escape(agent.id)}" ${hasAdhoc ? "" : "disabled"} title="Chat with ${escape(agent.name)}">Send</button>
       </div>
+      <div class="chat-area" data-chat-log>${chatLogHtml(agent.id)}</div>
 
       <div class="task-section ${sectionCollapsed ? "collapsed" : ""}">
         <button class="task-section-header" data-action="toggle-section">
@@ -1590,7 +1591,7 @@ async function renderHistory() {
 
   let events = [];
   try {
-    const r = await fetch("api/history?limit=300");
+    const r = await fetch("/api/history?limit=300");
     events = await r.json();
   } catch {
     view.innerHTML = `<div class="history-loading">Failed to load history.</div>`;
@@ -1793,7 +1794,7 @@ async function loadReportsFeed() {
   if (!el) return;
   el.innerHTML = '<div class="reports-loading">Loading…</div>';
   try {
-    const res = await fetch("api/briefings/today?days=7");
+    const res = await fetch("/api/briefings/today?days=7");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const rows = await res.json();
     if (!rows.length) {
@@ -1934,7 +1935,7 @@ function render() {
 
 // ─── Data fetching ──────────────────────────────────────────────
 async function loadAll() {
-  const agentsRes = await fetch("api/agents");
+  const agentsRes = await fetch("/api/agents");
   state.agents = await agentsRes.json();
   if (!state.collapsedReports.size) {
     state.collapsedReports = new Set(state.agents.map((a) => a.id));
@@ -1942,9 +1943,14 @@ async function loadAll() {
 
   await Promise.all(
     state.agents.map(async (a) => {
-      const r = await fetch(`api/agents/${a.id}/tasks`);
+      const r = await fetch(`/api/agents/${a.id}/tasks`);
       state.tasksByAgent[a.id] = await r.json();
     })
+  );
+
+  // Load chat history per agent (non-blocking on failure — chat is additive).
+  await Promise.all(
+    state.agents.map((a) => loadChatHistory(a.id).catch(() => {}))
   );
 
   // Load recently-executed items for the Completed column in inbox/kanban.
@@ -1956,8 +1962,8 @@ async function loadAll() {
   // Window is 14 days so Matt can review a reasonable span of recent work.
   try {
     const [completedRes, histRes] = await Promise.all([
-      fetch("api/completed?days=14"),
-      fetch("api/history?limit=200"),
+      fetch("/api/completed?days=14"),
+      fetch("/api/history?limit=200"),
     ]);
     const completedRows = await completedRes.json();
     const events = await histRes.json();
@@ -2038,7 +2044,7 @@ async function setDecision(agentId, propId, decision, comment, opts = {}) {
   if (!opts.skipRender) preserveFocusAndRender();
 
   // server PUT after — fire and forget
-  fetch(`api/agents/${agentId}/tasks/${propId}/decision`, {
+  fetch(`/api/agents/${agentId}/tasks/${propId}/decision`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ decision, comment }),
@@ -2065,7 +2071,7 @@ async function sendThreadMessage(agentId, propId, text) {
   toast("Message added — run /execute-{agent} to process");
 
   // Server save
-  fetch(`api/agents/${agentId}/tasks/${propId}/message`, {
+  fetch(`/api/agents/${agentId}/tasks/${propId}/message`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text, role: "matt" }),
@@ -2121,7 +2127,7 @@ function queueEditSave(agentId, propId, bodyText) {
   editDebounce.set(
     propId,
     setTimeout(() => {
-      fetch(`api/agents/${agentId}/tasks/${propId}/decision`, {
+      fetch(`/api/agents/${agentId}/tasks/${propId}/decision`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2158,7 +2164,7 @@ function queueCommentSave(agentId, propId, comment) {
   commentDebounce.set(
     propId,
     setTimeout(() => {
-      fetch(`api/agents/${agentId}/tasks/${propId}/decision`, {
+      fetch(`/api/agents/${agentId}/tasks/${propId}/decision`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ comment }),
@@ -2431,7 +2437,7 @@ document.addEventListener("click", async (e) => {
       } else if (body) {
         body.innerHTML = `<div class="report-loading">Loading…</div>`;
         state.agentBriefingStatus[agentId] = "loading";
-        fetch(`api/agents/${agentId}/briefing`)
+        fetch(`/api/agents/${agentId}/briefing`)
           .then((res) => {
             if (res.status === 404) return null;
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -2601,7 +2607,7 @@ document.addEventListener("click", async (e) => {
     const agentId = unstickBtn.dataset.agent;
     unstickBtn.disabled = true;
     try {
-      const res = await fetch(`api/agents/${agentId}/tasks/${propId}/move`, {
+      const res = await fetch(`/api/agents/${agentId}/tasks/${propId}/move`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target: "todo" }),
@@ -2619,10 +2625,10 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
-  // Ad-hoc Send — commit the textarea text as a pre-approved freeform proposal
-  // and immediately kick the execute pipeline for that agent. This is the
-  // missing path that made "Ask {agent}" feel broken: typing stored text but
-  // nothing fired it. Now Enter-in-textarea and click-Send both route here.
+  // Send — wire the textarea + button to the agent's persistent OpenClaw chat
+  // session. The reply streams back via SSE and renders inline below the input.
+  // The /adhoc endpoint (synthetic task) is still used by Execute All for any
+  // un-Sent text, so the historical batch flow keeps working.
   const adhocSendBtn = e.target.closest('[data-action="adhoc-send"]');
   if (adhocSendBtn) {
     e.preventDefault();
@@ -2632,24 +2638,18 @@ document.addEventListener("click", async (e) => {
     if (!text) return;
     adhocSendBtn.disabled = true;
     adhocSendBtn.textContent = "Sending…";
+    // Clear the textarea immediately so Matt can type the next message.
+    const ta = document.querySelector(
+      `.agent-card[data-agent="${CSS.escape(agentId)}"] [data-action="adhoc-input"]`
+    );
+    if (ta) { ta.value = ""; autogrow(ta); }
+    updateCounts();
     try {
-      await commitAdhoc(agentId);
-      // Clear the textarea visually and in state
-      const ta = document.querySelector(
-        `.agent-card[data-agent="${CSS.escape(agentId)}"] [data-action="adhoc-input"]`
-      );
-      if (ta) { ta.value = ""; autogrow(ta); }
-      // Refresh this agent's proposals so the new freeform shows up
-      try {
-        const r = await fetch(`api/agents/${agentId}/tasks`);
-        state.tasksByAgent[agentId] = await r.json();
-      } catch {}
-      const agent = state.agents.find((a) => a.id === agentId);
-      toast(`Sent to ${agent?.name || agentId} — open the task to execute`);
-      render();
+      await commitChat(agentId);
     } catch (err) {
-      toast(`Couldn't send — ${err.message}`);
-      adhocSendBtn.disabled = false;
+      toast(`Chat failed — ${err.message}`);
+    } finally {
+      adhocSendBtn.disabled = true; // re-disabled because draft is empty now
       adhocSendBtn.textContent = "Send";
     }
     return;
@@ -2735,7 +2735,7 @@ document.addEventListener("click", async (e) => {
           );
           if (taAdhoc) taAdhoc.value = "";
           try {
-            const r = await fetch(`api/agents/${a.id}/tasks`);
+            const r = await fetch(`/api/agents/${a.id}/tasks`);
             state.tasksByAgent[a.id] = await r.json();
           } catch {}
         }
@@ -2761,7 +2761,7 @@ document.addEventListener("click", async (e) => {
         }
         // Server-side queue
         try {
-          await fetch(`api/agents/${a.id}/queue`, { method: "POST" });
+          await fetch(`/api/agents/${a.id}/queue`, { method: "POST" });
         } catch {}
 
         // Ripple the card
@@ -2848,7 +2848,7 @@ document.addEventListener("click", async (e) => {
     try {
       const today = new Date().toISOString().slice(0, 10);
       const taskId = `${agentId}-manual-${today}-${Date.now().toString(36)}`;
-      await fetch("api/db/tasks", {
+      await fetch("/api/db/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: taskId, agent_id: agentId, title, action_type: actionType, due_date: due, origin: "manual", active: true }),
@@ -3010,7 +3010,7 @@ async function setDueDate(agentId, propId, dueDate) {
 
   // Server save.
   try {
-    await fetch(`api/agents/${agentId}/tasks/${propId}/due_date`, {
+    await fetch(`/api/agents/${agentId}/tasks/${propId}/due_date`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ due_date: dueDate }),
@@ -3122,7 +3122,7 @@ document.addEventListener("drop", async (e) => {
 
   // Server save
   try {
-    await fetch(`api/agents/${agentId}/tasks/${propId}/move`, {
+    await fetch(`/api/agents/${agentId}/tasks/${propId}/move`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target }),
@@ -3178,7 +3178,7 @@ document.addEventListener("click", (e) => {
     renderInbox();
 
     // Server save
-    fetch(`api/agents/${agentId}/tasks/${propId}/resolve`, {
+    fetch(`/api/agents/${agentId}/tasks/${propId}/resolve`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
@@ -3225,13 +3225,179 @@ async function commitAdhoc(agentId) {
   adhocDrafts.delete(agentId);
   persistAdhoc();
   try {
-    await fetch(`api/agents/${agentId}/adhoc`, {
+    await fetch(`/api/agents/${agentId}/adhoc`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: text.trim() }),
     });
   } catch {}
   return true;
+}
+
+// ─── Chat state ────────────────────────────────────────────────────────────
+// Persistent chat with each agent's always-on OpenClaw session. History is
+// the source of truth from the server; this Map caches the rendered set per
+// agent so we don't refetch on every render. Live runs (after Send is hit)
+// are tracked in chatRunsByAgent so the SSE stream and the card render share
+// status + reply state.
+const chatByAgent = new Map(); // agentId -> [{ id, role, text, source, created_at }]
+const chatRunsByAgent = new Map(); // agentId -> { runId, status, reply, error, source }
+
+async function loadChatHistory(agentId, { force = false } = {}) {
+  if (chatByAgent.has(agentId) && !force) return chatByAgent.get(agentId);
+  try {
+    const r = await fetch(`/api/agents/${agentId}/chat/history?limit=50`);
+    if (!r.ok) throw new Error(`history ${r.status}`);
+    const { messages } = await r.json();
+    chatByAgent.set(agentId, messages || []);
+    return messages;
+  } catch (err) {
+    console.warn("[chat] history load failed:", err.message);
+    chatByAgent.set(agentId, []);
+    return [];
+  }
+}
+
+// Send Matt's typed text to the agent's persistent OpenClaw session, open SSE
+// for the reply, and refresh the in-card chat log as events arrive. Returns
+// when the SSE stream closes (reply received or timeout) so callers can await.
+async function commitChat(agentId) {
+  const text = (adhocDrafts.get(agentId) || "").trim();
+  if (!text) return false;
+  // Clear the input draft immediately — Matt's already committed by hitting Send.
+  adhocDrafts.delete(agentId);
+  persistAdhoc();
+
+  // Optimistic local user bubble so the UI updates before the server round-trip.
+  const history = chatByAgent.get(agentId) || [];
+  const optimisticId = `local-${Date.now()}`;
+  history.push({
+    id: optimisticId,
+    role: "user",
+    text,
+    source: "chat",
+    created_at: new Date().toISOString(),
+  });
+  chatByAgent.set(agentId, history);
+  chatRunsByAgent.set(agentId, { runId: null, status: "Sending…", reply: null });
+  renderChatLog(agentId);
+
+  let runId;
+  try {
+    const sendRes = await fetch(`/api/agents/${agentId}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (!sendRes.ok) {
+      const errBody = await sendRes.json().catch(() => ({}));
+      throw new Error(errBody.error || `chat ${sendRes.status}`);
+    }
+    const json = await sendRes.json();
+    runId = json.runId;
+    chatRunsByAgent.set(agentId, { runId, status: "Thinking…", reply: null });
+    renderChatLog(agentId);
+  } catch (err) {
+    chatRunsByAgent.set(agentId, { runId: null, status: null, reply: null, error: err.message });
+    renderChatLog(agentId);
+    return false;
+  }
+
+  // Open SSE and resolve when the reply (or error) arrives.
+  return new Promise((resolve) => {
+    const es = new EventSource(`/api/agents/${agentId}/chat/stream?runId=${encodeURIComponent(runId)}`);
+
+    const finish = (ok) => {
+      try { es.close(); } catch {}
+      resolve(ok);
+    };
+
+    es.addEventListener("status", (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        const run = chatRunsByAgent.get(agentId) || {};
+        run.status = data.label || "Working…";
+        chatRunsByAgent.set(agentId, run);
+        renderChatLog(agentId);
+      } catch {}
+    });
+
+    es.addEventListener("reply", (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        const hist = chatByAgent.get(agentId) || [];
+        hist.push({
+          id: `srv-${data.runId}`,
+          role: "assistant",
+          text: data.text,
+          source: "chat",
+          run_id: data.runId,
+          created_at: new Date().toISOString(),
+        });
+        chatByAgent.set(agentId, hist);
+        chatRunsByAgent.delete(agentId);
+        renderChatLog(agentId);
+      } catch {}
+      finish(true);
+    });
+
+    es.addEventListener("error", (ev) => {
+      let msg = "stream error";
+      try { msg = JSON.parse(ev.data).message || msg; } catch {}
+      const run = chatRunsByAgent.get(agentId) || {};
+      run.status = null;
+      run.error = msg;
+      chatRunsByAgent.set(agentId, run);
+      renderChatLog(agentId);
+      finish(false);
+    });
+
+    // Browser-side safety net in case the server SSE close is missed.
+    setTimeout(() => finish(false), 3 * 60 * 1000 + 5000);
+  });
+}
+
+function renderChatLog(agentId) {
+  const logEl = document.querySelector(
+    `.agent-card[data-agent="${CSS.escape(agentId)}"] [data-chat-log]`
+  );
+  if (!logEl) return;
+  logEl.innerHTML = chatLogHtml(agentId);
+}
+
+function chatLogHtml(agentId) {
+  const messages = (chatByAgent.get(agentId) || []).filter(
+    (m) => m.role === "user" || m.role === "assistant"
+  );
+  const run = chatRunsByAgent.get(agentId);
+  if (!messages.length && !run) return "";
+
+  const bubbles = messages
+    .slice(-6) // show last 6 turns inline; full history in expand later
+    .map((m) => {
+      const time = new Date(m.created_at).toLocaleString("en-US", {
+        month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+      });
+      return `
+        <div class="thread-bubble ${m.role === "user" ? "matt" : "agent"}">
+          <div class="bubble-meta">
+            <span class="bubble-role">${m.role === "user" ? "You" : "Agent"}</span>
+            <span class="bubble-time">${escape(time)}</span>
+          </div>
+          <div class="bubble-text">${escape(m.text).replace(/\n/g, "<br>")}</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  let statusBar = "";
+  if (run?.status) {
+    statusBar = `<div class="chat-status">${escape(run.status)}</div>`;
+  } else if (run?.error) {
+    statusBar = `<div class="chat-status chat-status-error">⚠ ${escape(run.error)}</div>`;
+  }
+
+  return `<div class="thread-messages chat-log">${bubbles}${statusBar}</div>`;
 }
 
 // In-memory drafts keyed by propId. Persist to localStorage so a refresh
@@ -3270,7 +3436,7 @@ async function commitDraft(agentId, propId) {
   }
   // Server save
   try {
-    await fetch(`api/agents/${agentId}/tasks/${propId}/message`, {
+    await fetch(`/api/agents/${agentId}/tasks/${propId}/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: text.trim(), role: "matt" }),
@@ -3379,7 +3545,7 @@ async function executeAgent(agentId) {
     if (taAdhoc) taAdhoc.value = "";
     // Reload proposals so the new adhoc task is in local state before queueing
     try {
-      const r = await fetch(`api/agents/${agentId}/tasks`);
+      const r = await fetch(`/api/agents/${agentId}/tasks`);
       state.tasksByAgent[agentId] = await r.json();
     } catch {}
   }
@@ -3411,7 +3577,7 @@ async function executeAgent(agentId) {
     persistCronToggles();
   }
   try {
-    await fetch(`api/agents/${agentId}/queue`, { method: "POST" });
+    await fetch(`/api/agents/${agentId}/queue`, { method: "POST" });
   } catch {}
   // Local optimistic update — queue any touched item
   if (data) {
@@ -3435,7 +3601,7 @@ async function executeAgent(agentId) {
 async function pollExecute(agentId, runId) {
   const interval = setInterval(async () => {
     try {
-      const r = await fetch(`api/execute/${runId}/status`);
+      const r = await fetch(`/api/execute/${runId}/status`);
       if (!r.ok) return;
       const info = await r.json();
       const terminal = ["completed", "error", "no-op"];
@@ -3519,7 +3685,7 @@ const DATE_COLS = new Set(['last_contact','next_action_due','due_date','meeting_
 
 async function dbPatch(tableId, rowId, col, value) {
   const apiTable = DB_API_TABLE[tableId] || tableId;
-  const resp = await fetch(`api/db/${apiTable}/${rowId}`, {
+  const resp = await fetch(`/api/db/${apiTable}/${rowId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ [col]: value }),
@@ -3533,7 +3699,7 @@ async function dbPatch(tableId, rowId, col, value) {
 
 async function dbCreate(tableId, fields) {
   const apiTable = DB_API_TABLE[tableId] || tableId;
-  const resp = await fetch(`api/db/${apiTable}`, {
+  const resp = await fetch(`/api/db/${apiTable}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(fields),
@@ -3547,7 +3713,7 @@ async function dbCreate(tableId, fields) {
 
 async function dbDelete(tableId, rowId) {
   const apiTable = DB_API_TABLE[tableId] || tableId;
-  const resp = await fetch(`api/db/${apiTable}/${rowId}`, { method: 'DELETE' });
+  const resp = await fetch(`/api/db/${apiTable}/${rowId}`, { method: 'DELETE' });
   if (!resp.ok) {
     const e = await resp.json().catch(() => ({}));
     throw new Error(e.error || `HTTP ${resp.status}`);
@@ -3597,7 +3763,7 @@ let dbStats = null;
 async function loadDbStats() {
   if (dbStats) return dbStats;
   try {
-    const r = await fetch("api/db/stats");
+    const r = await fetch("/api/db/stats");
     const j = await r.json();
     dbStats = Object.fromEntries((j.tables || []).map((t) => [t.table_name, t.n]));
   } catch (e) {
@@ -3750,7 +3916,7 @@ async function renderDbTable(id) {
 
   const endpoint = meta.endpoint || id;
   try {
-    const r = await fetch(`api/db/${endpoint}?limit=200`);
+    const r = await fetch(`/api/db/${endpoint}?limit=200`);
     const j = await r.json();
     const rows = j.rows || [];
     if (!rows.length) {
@@ -3787,7 +3953,7 @@ async function renderDbContactsGrouped(mount) {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (role) params.set("role", role);
-  const url = `api/db/contacts/grouped${params.toString() ? "?" + params : ""}`;
+  const url = `/api/db/contacts/grouped${params.toString() ? "?" + params : ""}`;
   let j;
   try {
     const r = await fetch(url);
@@ -4295,7 +4461,7 @@ async function renderDbMeeting(meetingId) {
   view.hidden = false;
 
   try {
-    const resp = await fetch(`api/db/meetings/${meetingId}/full`);
+    const resp = await fetch(`/api/db/meetings/${meetingId}/full`);
     if (!resp.ok) throw new Error("Meeting not found");
     const { row: m } = await resp.json();
 
@@ -4384,7 +4550,7 @@ async function renderDbCompany(slug, opts = {}) {
     </div>
   `;
   try {
-    const r = await fetch(`api/db/companies/${encodeURIComponent(slug)}`);
+    const r = await fetch(`/api/db/companies/${encodeURIComponent(slug)}`);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const j = await r.json();
     const c = j.company;
@@ -4601,7 +4767,7 @@ async function loadCompanyEmails(slug) {
   const bodyEl = document.getElementById("db-emails-body");
   if (!bodyEl) return;
   try {
-    const r = await fetch(`api/outlook/emails/${encodeURIComponent(slug)}`);
+    const r = await fetch(`/api/outlook/emails/${encodeURIComponent(slug)}`);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const j = await r.json();
     const msgs = j.emails || [];
@@ -4687,7 +4853,7 @@ function renderEmailView(mode, container, threadList) {
 async function loadEmailBody(emailId, containerEl) {
   containerEl.innerHTML = '<div class="db-emails-loading">Loading...</div>';
   try {
-    const r = await fetch(`api/outlook/read/${encodeURIComponent(emailId)}`);
+    const r = await fetch(`/api/outlook/read/${encodeURIComponent(emailId)}`);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const m = await r.json();
     const from = m.from ? `<b>${escapeHtml(m.from.name || m.from.address)}</b>` : "Unknown";
@@ -4800,7 +4966,7 @@ document.addEventListener("click", (e) => {
         if (bodyEl && bodyEl.classList.contains("db-meeting-loading")) {
           const contentId = meetingRow.dataset.contentId;
           if (contentId) {
-            fetch(`api/db/meetings/${contentId}/content`)
+            fetch(`/api/db/meetings/${contentId}/content`)
               .then(r => r.json())
               .then(j => {
                 const raw = j.body || "";
@@ -4853,7 +5019,7 @@ document.addEventListener("click", (e) => {
     const meetingId = matchBtnEl.dataset.meetingId;
     matchBtnEl.disabled = true;
     matchBtnEl.textContent = "…";
-    fetch(`api/db/meetings/${meetingId}/match`, { method: "POST" })
+    fetch(`/api/db/meetings/${meetingId}/match`, { method: "POST" })
       .then(r => r.json())
       .then(j => {
         if (j.matched) {
@@ -4904,7 +5070,7 @@ document.addEventListener("click", (e) => {
     if (window.__companyCache) {
       openPicker(window.__companyCache);
     } else {
-      fetch("api/db/companies?limit=500")
+      fetch("/api/db/companies?limit=500")
         .then(r => r.json())
         .then(j => {
           window.__companyCache = (j.rows || [])
@@ -5387,7 +5553,7 @@ function showDbAddModal(tableId) {
     const companyMatch = location.hash.match(/^#\/db\/companies\/([\w-]+)$/);
     if (companyMatch && (tableId === "contacts" || tableId === "tasks")) {
       try {
-        const cr = await fetch(`api/db/companies/${companyMatch[1]}`);
+        const cr = await fetch(`/api/db/companies/${companyMatch[1]}`);
         const cj = await cr.json();
         if (cj.company) data.company_id = cj.company.company_id;
       } catch {}
@@ -5484,7 +5650,7 @@ async function renderGithubRepos() {
   `;
 
   $("#gh-refresh").addEventListener("click", async () => {
-    try { await fetch("api/github/refresh", { method: "POST" }); } catch {}
+    try { await fetch("/api/github/refresh", { method: "POST" }); } catch {}
     renderGithubRepos();
   });
   $("#gh-settings").addEventListener("click", () => ghOpenSettings());
@@ -5494,7 +5660,7 @@ async function renderGithubRepos() {
 
   let data;
   try {
-    const r = await fetch(`api/github/repos${qs}`);
+    const r = await fetch(`/api/github/repos${qs}`);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     data = await r.json();
   } catch (err) {
@@ -5592,7 +5758,7 @@ async function ghOpenSettings() {
   // Fetch ALL repos (no enabled filter) to show the full picker list
   let allRepos = [];
   try {
-    const r = await fetch("api/github/repos?enabled=__none__");
+    const r = await fetch("/api/github/repos?enabled=__none__");
     if (r.ok) {
       const d = await r.json();
       allRepos = (d.repos || []).slice().sort((a, b) =>
@@ -5662,13 +5828,13 @@ async function renderGithubRepo(repo) {
   `;
 
   $("#gh-refresh").addEventListener("click", async () => {
-    try { await fetch("api/github/refresh", { method: "POST" }); } catch {}
+    try { await fetch("/api/github/refresh", { method: "POST" }); } catch {}
     renderGithubRepo(repo);
   });
 
   let data;
   try {
-    const r = await fetch(`api/github/repos/${encodeURIComponent(repo)}`);
+    const r = await fetch(`/api/github/repos/${encodeURIComponent(repo)}`);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     data = await r.json();
   } catch (err) {
@@ -5825,7 +5991,7 @@ async function renderCompanyCoverage() {
 
   let companies = [];
   try {
-    const res = await fetch("api/companies/coverage");
+    const res = await fetch("/api/companies/coverage");
     const data = await res.json();
     companies = data.companies || [];
   } catch (err) {
@@ -5960,7 +6126,7 @@ async function toggleCovCard(slug) {
 
 async function loadCovCardDetail(slug) {
   try {
-    const res = await fetch(`api/companies/${encodeURIComponent(slug)}/coverage`);
+    const res = await fetch(`/api/companies/${encodeURIComponent(slug)}/coverage`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = await res.json();
     state.covDetailCache[slug] = { tasks: payload.tasks || [] };
@@ -6045,7 +6211,7 @@ async function renderProjects() {
 
   let projects = [];
   try {
-    const res = await fetch("api/projects");
+    const res = await fetch("/api/projects");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     projects = data.projects || [];
@@ -6153,7 +6319,7 @@ async function renderProjectDetail(projectId) {
 
   let project = null, tasks = [];
   try {
-    const res = await fetch(`api/projects/${encodeURIComponent(projectId)}`);
+    const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}`);
     if (!res.ok) {
       if (res.status === 404) {
         main.innerHTML = `<div class="cov-error">Project not found. <a href="#/projects">Back to projects</a></div>`;
