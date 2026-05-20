@@ -45,6 +45,60 @@ const WORKSPACE_DIR =
 // Protect /setup with a user-provided password.
 const SETUP_PASSWORD = process.env.SETUP_PASSWORD?.trim();
 
+// --- Cookie-based dashboard session ---
+// The Control UI is a SPA; browsers re-prompt for basic-auth on every XHR/
+// WebSocket reconnect because they don't auto-attach Basic credentials to
+// non-top-level requests. That creates a sign-in popup loop. Cookie sessions
+// sidestep it: one form-based login sets a signed cookie, every subsequent
+// request (including XHRs, WS upgrades, MC's API calls) rides along silently.
+const DASHBOARD_COOKIE_NAME = "openclaw_dash";
+const DASHBOARD_COOKIE_SECRET = (() => {
+  if (!SETUP_PASSWORD) return null;
+  const stateDir = process.env.OPENCLAW_STATE_DIR?.trim() || path.join(os.homedir(), ".openclaw");
+  const secretPath = path.join(stateDir, "dashboard-cookie-secret");
+  try {
+    const existing = fs.readFileSync(secretPath, "utf8").trim();
+    if (existing) return existing;
+  } catch {
+    // not yet created
+  }
+  try {
+    fs.mkdirSync(stateDir, { recursive: true });
+    const generated = crypto.randomBytes(32).toString("hex");
+    fs.writeFileSync(secretPath, generated, { encoding: "utf8", mode: 0o600 });
+    return generated;
+  } catch {
+    return crypto.randomBytes(32).toString("hex"); // in-memory fallback
+  }
+})();
+function signDashboardCookie() {
+  if (!DASHBOARD_COOKIE_SECRET) return "";
+  return crypto.createHmac("sha256", DASHBOARD_COOKIE_SECRET).update("v1").digest("hex");
+}
+function parseDashboardCookie(req) {
+  const raw = req.headers.cookie || "";
+  for (const part of raw.split(/;\s*/)) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    if (part.slice(0, eq) === DASHBOARD_COOKIE_NAME) return decodeURIComponent(part.slice(eq + 1));
+  }
+  return "";
+}
+function dashboardAuthOk(req) {
+  if (!SETUP_PASSWORD) return true;
+  return parseDashboardCookie(req) === signDashboardCookie();
+}
+function renderLoginPage(errorMsg) {
+  const safe = (errorMsg || "").replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]));
+  return (
+    '<!doctype html><meta charset=utf-8><title>Sign in</title>' +
+    '<style>body{font-family:Arial,Helvetica,sans-serif;background:#0c0c10;color:#e6e6ea;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}.card{background:#16161c;border:1px solid #2a2a33;border-radius:10px;padding:28px 32px;width:340px}h1{margin:0 0 16px;font-size:18px}label{display:block;font-size:13px;color:#8e8ea0;margin-bottom:6px}input{width:100%;box-sizing:border-box;padding:9px 11px;border-radius:6px;border:1px solid #2a2a33;background:#0c0c10;color:#e6e6ea;font-size:14px;margin-bottom:14px}button{width:100%;padding:10px;border-radius:6px;border:0;background:#3056ff;color:#fff;font-weight:600;cursor:pointer}.err{color:#ff6b6b;font-size:12px;margin:-6px 0 10px}</style>' +
+    '<div class=card><h1>OpenClaw Dashboard</h1><form method=POST action=/__login>' +
+    (safe ? '<div class=err>' + safe + '</div>' : "") +
+    '<label>Password</label><input type=password name=password autofocus required><button>Sign in</button></form></div>'
+  );
+}
+
 // Gateway admin token (protects OpenClaw gateway + Control UI).
 // Must be stable across restarts. If not provided via env, persist it in the state dir.
 function resolveGatewayToken() {
@@ -1378,22 +1432,23 @@ proxy.on("error", (err, _req, res) => {
 // not just the /setup routes.  Healthcheck is excluded so Railway probes work.
 function requireDashboardAuth(req, res, next) {
   if (req.path === "/healthz" || req.path === "/setup/healthz") return next();
-  if (req.path.startsWith("/hooks")) return next(); // allow OpenClaw webhook endpoints to bypass dashboard auth
-  if (!SETUP_PASSWORD) return next(); // no password configured → open
+  if (req.path.startsWith("/hooks")) return next();
+  if (req.path === "/__login") return next();
+  if (!SETUP_PASSWORD) return next();
+  // Cookie session (set after a successful /__login POST) — silently accepted
+  // on every subsequent request including XHR + WebSocket upgrade. No popup.
+  if (dashboardAuthOk(req)) return next();
+  // Backward compat: still accept Basic auth headers (curl, CLI, MCP probes).
   const header = req.headers.authorization || "";
-  const [scheme, encoded] = header.split(" ");
-  if (scheme !== "Basic" || !encoded) {
-    res.set("WWW-Authenticate", 'Basic realm="OpenClaw Dashboard"');
-    return res.status(401).send("Auth required");
+  if (header.startsWith("Basic ")) {
+    const decoded = Buffer.from(header.slice(6), "base64").toString("utf8");
+    const idx = decoded.indexOf(":");
+    const password = idx >= 0 ? decoded.slice(idx + 1) : "";
+    if (password === SETUP_PASSWORD) return next();
   }
-  const decoded = Buffer.from(encoded, "base64").toString("utf8");
-  const idx = decoded.indexOf(":");
-  const password = idx >= 0 ? decoded.slice(idx + 1) : "";
-  if (password !== SETUP_PASSWORD) {
-    res.set("WWW-Authenticate", 'Basic realm="OpenClaw Dashboard"');
-    return res.status(401).send("Invalid password");
-  }
-  return next();
+  // Serve an HTML login form instead of a Basic-auth challenge.
+  // No WWW-Authenticate header = no browser popup loop.
+  return res.status(401).type("text/html").send(renderLoginPage(""));
 }
 
 // --- Gateway token injection ---
@@ -1436,6 +1491,24 @@ mcProxy.on("error", (err, _req, res) => {
 mcProxy.on("proxyReq", (proxyReq) => {
   // MC uses this to rewrite <base href> so SPA assets/fetches resolve under /mc/.
   proxyReq.setHeader("X-Forwarded-Prefix", "/mc");
+});
+
+// Cookie-session login form handler. Mounted before the /mc proxy + catch-all
+// so /__login is reachable even on a fresh browser (no cookie yet).
+app.post("/__login", express.urlencoded({ extended: false }), (req, res) => {
+  if (!SETUP_PASSWORD) return res.redirect("/");
+  const pw = (req.body && req.body.password) || "";
+  if (pw !== SETUP_PASSWORD) {
+    return res.status(401).type("text/html").send(renderLoginPage("Wrong password"));
+  }
+  const sig = signDashboardCookie();
+  const maxAge = 60 * 60 * 24 * 30; // 30 days
+  res.set(
+    "Set-Cookie",
+    DASHBOARD_COOKIE_NAME + "=" + encodeURIComponent(sig) +
+      "; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=" + maxAge
+  );
+  res.redirect("/");
 });
 
 app.use("/mc", requireDashboardAuth, (req, res) => {

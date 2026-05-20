@@ -79,7 +79,7 @@ const AGENTS = [
   {
     id: "cs",
     name: "CS",
-    emoji: "\uD83E\uDD1D",
+    emoji: "🤝",
     skill: "/cs-daily",
     persona: "/be-cs",
     schedule: "Daily 8:43 AM",
@@ -94,7 +94,7 @@ const AGENTS = [
   {
     id: "cro",
     name: "CRO",
-    emoji: "\uD83D\uDCBC",
+    emoji: "💼",
     skill: "/cro-daily",
     persona: "/be-cro",
     schedule: "Daily 8:27 AM",
@@ -109,7 +109,7 @@ const AGENTS = [
   {
     id: "bdm",
     name: "BDM",
-    emoji: "\uD83C\uDFAF",
+    emoji: "🎯",
     skill: "/bdm-weekly",
     persona: "/be-bdm",
     schedule: "Mon 9:03 AM",
@@ -124,7 +124,7 @@ const AGENTS = [
   {
     id: "fin",
     name: "Finance",
-    emoji: "\uD83D\uDCB0",
+    emoji: "💰",
     skill: "/fin-weekly",
     persona: "/be-fin",
     schedule: "Fri 9:03 AM",
@@ -139,7 +139,7 @@ const AGENTS = [
   {
     id: "analyst",
     name: "Analyst",
-    emoji: "\uD83D\uDCCA",
+    emoji: "📊",
     skill: null,
     persona: "/be-analyst",
     schedule: null,
@@ -154,7 +154,7 @@ const AGENTS = [
   {
     id: "content",
     name: "Content",
-    emoji: "\u270D\uFE0F",
+    emoji: "✍️",
     skill: "/content-weekly",
     persona: "/be-content",
     schedule: "Mon 7:30 AM",
@@ -169,7 +169,7 @@ const AGENTS = [
   {
     id: "dev",
     name: "Dev",
-    emoji: "\uD83D\uDEE0\uFE0F",
+    emoji: "🛠️",
     skill: null,
     persona: "/be-dev",
     schedule: null,
@@ -689,7 +689,7 @@ app.post("/api/agents/:id/adhoc", async (req, res) => {
   );
   const seq = (seqRows[0]?.n || 0) + 1;
   const id = `${agent.id}-adhoc-${date}-${String(seq).padStart(2, "0")}`;
-  const title = trimmed.length > 72 ? trimmed.slice(0, 69) + "\u2026" : trimmed;
+  const title = trimmed.length > 72 ? trimmed.slice(0, 69) + "…" : trimmed;
 
   const execInstructions = `FREEFORM REQUEST from Matt. Do exactly what he asked, using your judgment and whichever MCP tools are appropriate. If the request is ambiguous, pick the most reasonable interpretation and proceed \u2014 do not ask questions. Request:\n\n${trimmed}`;
 
