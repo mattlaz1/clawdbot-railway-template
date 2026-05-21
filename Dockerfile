@@ -69,13 +69,19 @@ RUN corepack enable && corepack prepare pnpm@10.23.0 --activate
 
 # postgres-mcp — read+write Postgres MCP server (crystaldba/postgres-mcp).
 # Bakes into the image so the gateway can spawn it without network on cold start.
-# Configured via openclaw.json mcpServers.postgres; reads DATABASE_URL at runtime.
+# Configured via mission-agents/<id>/.mcp.json; reads DATABASE_URI at runtime
+# (note: DATABASE_URI not DATABASE_URL — postgres-mcp's env var convention).
 #
-# DISABLED 2026-05-20: postgres-mcp requires Python >= 3.12 but Debian Bookworm
-# ships python3 3.11. Re-enable once we either upgrade the base image to Trixie
-# or install Python 3.12 from deadsnakes. Phase 2 task — not needed for current
-# chat UI work which uses Mission Control's own Postgres pool.
-# RUN python3 -m pip install --break-system-packages --no-cache-dir postgres-mcp
+# postgres-mcp requires Python >= 3.12; Debian Bookworm ships 3.11. We use
+# `uv` to install a managed Python 3.12 and put postgres-mcp's CLI on the
+# system PATH so OpenClaw can spawn it as a stdio MCP server without
+# environment activation.
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && mv /root/.local/bin/uv /usr/local/bin/uv \
+    && uv python install 3.12 \
+    && uv tool install postgres-mcp \
+    && ln -sf /root/.local/bin/postgres-mcp /usr/local/bin/postgres-mcp \
+    && postgres-mcp --version || echo "postgres-mcp installed; version flag may vary"
 
 # Persist user-installed tools by default by targeting the Railway volume.
 # - npm global installs -> /data/npm

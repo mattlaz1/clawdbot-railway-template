@@ -268,11 +268,66 @@ async function maybeMigrateConfig() {
   }
 }
 
+// Idempotently register baked-in MCP servers (postgres-mcp, etc) with
+// OpenClaw's config. Runs once at startup; if a server is already
+// registered we skip it. Without this hook, the postgres-mcp binary we
+// install in the Dockerfile would exist on PATH but the gateway wouldn't
+// know to spawn it for agents.
+let mcpServersRegisteredThisProcess = false;
+async function ensureMcpServers() {
+  if (mcpServersRegisteredThisProcess) return;
+  if (!isConfigured()) return;
+  mcpServersRegisteredThisProcess = true;
+
+  // Skip silently if postgres-mcp isn't on PATH (e.g. local dev without uv).
+  const which = childProcess.spawnSync("which", ["postgres-mcp"], { encoding: "utf8" });
+  if (which.status !== 0 || !which.stdout.trim()) {
+    console.log("[wrapper] postgres-mcp not on PATH — skipping MCP registration");
+    return;
+  }
+
+  const dbUrl = process.env.DATABASE_URL || "";
+  if (!dbUrl) {
+    console.log("[wrapper] DATABASE_URL not set — skipping postgres-mcp registration");
+    return;
+  }
+
+  // Check whether postgres is already registered.
+  const listRes = childProcess.spawnSync(OPENCLAW_NODE, clawArgs(["mcp", "list"]), {
+    encoding: "utf8",
+    env: { ...process.env, OPENCLAW_STATE_DIR: STATE_DIR, OPENCLAW_WORKSPACE_DIR: WORKSPACE_DIR },
+  });
+  if (listRes.stdout && listRes.stdout.includes("postgres")) {
+    console.log("[wrapper] postgres-mcp already registered with OpenClaw");
+    return;
+  }
+
+  const serverDef = JSON.stringify({
+    command: "postgres-mcp",
+    args: ["--access-mode=unrestricted"],
+    env: { DATABASE_URI: dbUrl },
+  });
+  const setRes = childProcess.spawnSync(
+    OPENCLAW_NODE,
+    clawArgs(["mcp", "set", "postgres", serverDef]),
+    {
+      encoding: "utf8",
+      env: { ...process.env, OPENCLAW_STATE_DIR: STATE_DIR, OPENCLAW_WORKSPACE_DIR: WORKSPACE_DIR },
+    }
+  );
+  if (setRes.status === 0) {
+    console.log("[wrapper] registered postgres-mcp with OpenClaw");
+  } else {
+    console.warn(`[wrapper] failed to register postgres-mcp: ${setRes.stderr || setRes.stdout}`);
+  }
+}
+
 async function startGateway() {
   if (gatewayProc) return;
   if (!isConfigured()) throw new Error("Gateway cannot start: not configured");
 
   await maybeMigrateConfig();
+  await ensureMcpServers();
 
   fs.mkdirSync(STATE_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
