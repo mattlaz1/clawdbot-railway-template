@@ -839,6 +839,21 @@ function renderActiveCard(agent) {
     : `<div class="proposal-empty">No tasks yet · next run ${escape(scheduleLabel(agent))}</div>`;
   const sectionCollapsed = state.collapsedSections.has(agent.id);
 
+  // Card tab state (Tasks default; Chat reveals on click). Unread dot lights
+  // up when an assistant reply landed since the last time Matt opened the
+  // Chat tab on this card.
+  const activeTab = cardTabs.get(agent.id) || "tasks";
+  const chatMessages = (chatByAgent.get(agent.id) || []).filter(
+    (m) => m.role === "user" || m.role === "assistant"
+  );
+  const chatMsgCount = chatMessages.length;
+  const lastAssistant = [...chatMessages].reverse().find((m) => m.role === "assistant");
+  const lastSeenChatTs = chatLastSeen.get(agent.id) || 0;
+  const chatHasUnread =
+    activeTab !== "chat" &&
+    !!lastAssistant &&
+    new Date(lastAssistant.created_at).getTime() > lastSeenChatTs;
+
   // Inline report section
   const reportCollapsed = state.collapsedReports.has(agent.id);
   const cachedBriefing = state.agentBriefings[agent.id];
@@ -916,15 +931,20 @@ function renderActiveCard(agent) {
         >${escape(adhocDrafts.get(agent.id) || "")}</textarea>
         <button class="adhoc-send" data-action="adhoc-send" data-agent-id="${escape(agent.id)}" ${hasAdhoc ? "" : "disabled"} title="Chat with ${escape(agent.name)}">Send</button>
       </div>
-      <div class="chat-area" data-chat-log>${chatLogHtml(agent.id)}</div>
 
-      <div class="task-section ${sectionCollapsed ? "collapsed" : ""}">
-        <button class="task-section-header" data-action="toggle-section">
-          <span class="task-section-title">Recommended tasks <span class="task-count">${proposals.length}</span>${hiddenCount > 0 ? `<span class="hidden-count">${hiddenCount} scheduled later</span>` : ""}</span>
-          <svg class="section-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      <div class="card-tabs" role="tablist">
+        <button class="card-tab ${activeTab === "tasks" ? "active" : ""}" data-action="card-tab" data-tab="tasks" data-agent-id="${escape(agent.id)}" role="tab" aria-selected="${activeTab === "tasks"}">
+          Tasks <span class="card-tab-count">${proposals.length}</span>
         </button>
+        <button class="card-tab ${activeTab === "chat" ? "active" : ""}" data-action="card-tab" data-tab="chat" data-agent-id="${escape(agent.id)}" role="tab" aria-selected="${activeTab === "chat"}">
+          Chat${chatHasUnread ? `<span class="card-tab-dot" title="New reply"></span>` : ""}${chatMsgCount > 0 ? `<span class="card-tab-count">${chatMsgCount}</span>` : ""}
+        </button>
+      </div>
+
+      <div class="task-section ${sectionCollapsed ? "collapsed" : ""}" data-tab-panel="tasks" ${activeTab === "tasks" ? "" : "hidden"}>
         <div class="proposal-list">${proposalListHtml}</div>
       </div>
+      <div class="chat-area" data-tab-panel="chat" data-chat-log ${activeTab === "chat" ? "" : "hidden"}>${chatLogHtml(agent.id)}</div>
 
       ${reportSectionHtml}
 
@@ -2669,6 +2689,40 @@ document.addEventListener("click", async (e) => {
     return;
   }
 
+  // Card tab switch (Tasks ↔ Chat). Surgical DOM swap so we don't re-render
+  // the whole grid — preserves textarea focus and avoids flashing tasks.
+  const cardTabBtn = e.target.closest('[data-action="card-tab"]');
+  if (cardTabBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const agentId = cardTabBtn.dataset.agentId;
+    const tab = cardTabBtn.dataset.tab;
+    if (!agentId || !tab) return;
+    cardTabs.set(agentId, tab);
+    persistCardTabs();
+    if (tab === "chat") {
+      chatLastSeen.set(agentId, Date.now());
+      persistChatLastSeen();
+    }
+    const card = cardTabBtn.closest(".agent-card");
+    if (card) {
+      card.querySelectorAll(".card-tab").forEach((b) => {
+        const active = b.dataset.tab === tab;
+        b.classList.toggle("active", active);
+        b.setAttribute("aria-selected", active ? "true" : "false");
+      });
+      card.querySelectorAll("[data-tab-panel]").forEach((p) => {
+        if (p.dataset.tabPanel === tab) p.removeAttribute("hidden");
+        else p.setAttribute("hidden", "");
+      });
+      // Clear the unread dot
+      const chatTab = card.querySelector('.card-tab[data-tab="chat"]');
+      const dot = chatTab?.querySelector(".card-tab-dot");
+      if (dot) dot.remove();
+    }
+    return;
+  }
+
 
   const cronBtn = e.target.closest('[data-action="toggle-cron"]');
   if (cronBtn) {
@@ -3242,6 +3296,32 @@ async function commitAdhoc(agentId) {
 // status + reply state.
 const chatByAgent = new Map(); // agentId -> [{ id, role, text, source, created_at }]
 const chatRunsByAgent = new Map(); // agentId -> { runId, status, reply, error, source }
+
+// Per-card tab state: "tasks" (default) or "chat". Persisted to localStorage
+// so the chosen tab survives a refresh.
+const cardTabs = new Map();
+try {
+  const saved = JSON.parse(localStorage.getItem("mc_card_tabs") || "{}");
+  for (const [k, v] of Object.entries(saved)) cardTabs.set(k, v);
+} catch {}
+function persistCardTabs() {
+  try {
+    localStorage.setItem("mc_card_tabs", JSON.stringify(Object.fromEntries(cardTabs)));
+  } catch {}
+}
+
+// Last time Matt viewed the chat tab for each agent (epoch ms). New replies
+// after this timestamp light the unread dot.
+const chatLastSeen = new Map();
+try {
+  const saved = JSON.parse(localStorage.getItem("mc_chat_last_seen") || "{}");
+  for (const [k, v] of Object.entries(saved)) chatLastSeen.set(k, Number(v) || 0);
+} catch {}
+function persistChatLastSeen() {
+  try {
+    localStorage.setItem("mc_chat_last_seen", JSON.stringify(Object.fromEntries(chatLastSeen)));
+  } catch {}
+}
 
 async function loadChatHistory(agentId, { force = false } = {}) {
   if (chatByAgent.has(agentId) && !force) return chatByAgent.get(agentId);
