@@ -5,8 +5,17 @@
 // via SSE, and the durable transcript lives in the chat_messages table so
 // nothing is lost when OpenClaw restarts and so Phase 2 cron triggers can
 // write into the same brain history.
+//
+// Architecture: A single module-level "sink" subscribes to the OpenClaw
+// client at boot. Every assistant reply is persisted to Postgres the moment
+// it arrives, regardless of whether a browser SSE consumer is connected.
+// The sink re-emits replies on `replyBus`, which the SSE handlers tap to
+// forward live events to the browser. This means closing the tab during a
+// reply doesn't lose the message — it's already in the DB by the time the
+// browser reconnects.
 
 const express = require('express');
+const EventEmitter = require('node:events');
 const db = require('../lib/db');
 const { getClient } = require('../lib/openclaw');
 const briefing = require('../lib/briefing');
@@ -21,6 +30,12 @@ function sessionKeyFor(agentId) {
   return `agent:${agentId}:main`;
 }
 
+function agentIdFromSessionKey(sessionKey) {
+  // sessionKey "agent:cro:main" → "cro"
+  const parts = String(sessionKey || '').split(':');
+  return parts.length >= 3 && parts[0] === 'agent' ? parts[1] : null;
+}
+
 function validateAgent(req, res) {
   const id = req.params.id;
   if (!KNOWN_AGENTS.has(id)) {
@@ -30,12 +45,83 @@ function validateAgent(req, res) {
   return id;
 }
 
+// ─── Sink: persist every assistant reply, regardless of SSE state ──────────
+// Internal bus so SSE handlers can subscribe to live events. Status events
+// flow through unchanged (status pills are best-effort). Replies are
+// persisted here, then re-emitted as 'reply' on this bus.
+const replyBus = new EventEmitter();
+replyBus.setMaxListeners(50); // 7 agents × a few concurrent browser tabs
+
+function extractReplyText(payload) {
+  const msg = payload?.message || payload;
+  if (!msg) return '';
+  let text = '';
+  if (Array.isArray(msg.content)) {
+    for (const part of msg.content) {
+      if (part && typeof part.text === 'string') text += part.text;
+    }
+  } else if (typeof msg.content === 'string') {
+    text = msg.content;
+  } else if (typeof msg.text === 'string') {
+    text = msg.text;
+  }
+  return text.trim();
+}
+
+function isDoneAssistantPayload(payload) {
+  if (!payload) return false;
+  const msg = payload.message || payload;
+  const role = msg.role || payload.role;
+  if (role !== 'assistant') return false;
+  return (
+    (payload.session && payload.session.status === 'done') ||
+    payload.done === true ||
+    msg.status === 'done'
+  );
+}
+
+// Initialize sink once at module load. getClient() returns the singleton;
+// these listeners survive reconnects (they're on the EventEmitter, not the
+// underlying socket).
+(function initSink() {
+  const client = getClient();
+
+  client.on('agent', (payload) => {
+    if (!payload) return;
+    const agentId = agentIdFromSessionKey(payload.sessionKey);
+    if (!agentId || !KNOWN_AGENTS.has(agentId)) return;
+    replyBus.emit('status', { agentId, runId: payload.runId, payload });
+  });
+
+  client.on('message', async (payload) => {
+    if (!isDoneAssistantPayload(payload)) return;
+    const agentId = agentIdFromSessionKey(payload.sessionKey);
+    if (!agentId || !KNOWN_AGENTS.has(agentId)) return;
+    const text = extractReplyText(payload);
+    if (!text) return;
+    const runId = payload.runId || payload.message?.runId || null;
+
+    // Persist first — single source of truth. If a tab is open, the SSE
+    // handler will forward this via replyBus.emit('reply', ...) below.
+    try {
+      await db.query(
+        `INSERT INTO chat_messages (agent_id, session_key, role, text, run_id, source)
+         VALUES ($1, $2, 'assistant', $3, $4, 'chat')`,
+        [agentId, sessionKeyFor(agentId), text, runId]
+      );
+    } catch (err) {
+      console.error('[chat/sink] persist assistant failed:', err.message);
+    }
+
+    replyBus.emit('reply', { agentId, runId, text });
+  });
+})();
+
 /**
  * POST /api/agents/:id/chat
  * Body: { text }
  * Inserts the user message, refreshes briefing if stale, sends to OpenClaw.
- * Returns { runId, sessionKey } — caller opens /chat/stream?runId= to receive
- * status events and the final reply.
+ * Returns { runId, sessionKey, messageId }.
  */
 router.post('/api/agents/:id/chat', async (req, res) => {
   const agentId = validateAgent(req, res);
@@ -99,11 +185,16 @@ router.post('/api/agents/:id/chat', async (req, res) => {
 
 /**
  * GET /api/agents/:id/chat/stream?runId=<id>
- * SSE. Emits:
- *   event: status   data: <label>           — tool/lifecycle updates
- *   event: reply    data: <text>            — final assistant message
- *   event: error    data: <message>         — timeout or gateway error
- * Stream closes after reply or error.
+ * SSE. Forwards live events from the sink for the matching agent + runId.
+ *
+ * Emits:
+ *   event: status   data: <label>       — tool/lifecycle updates
+ *   event: reply    data: <text>        — final assistant message
+ *   event: error    data: <message>     — timeout
+ *
+ * Stream closes after reply or timeout. If the reply already landed in the
+ * DB before the browser reconnects (because the tab was closed during the
+ * 5-15s reply window), the next loadChatHistory() call will surface it.
  */
 router.get('/api/agents/:id/chat/stream', async (req, res) => {
   const agentId = validateAgent(req, res);
@@ -111,16 +202,12 @@ router.get('/api/agents/:id/chat/stream', async (req, res) => {
   const runId = req.query.runId;
   if (!runId) return res.status(400).json({ error: 'runId required' });
 
-  const sessionKey = sessionKeyFor(agentId);
-  const client = getClient();
-
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
     Connection: 'keep-alive',
-    'X-Accel-Buffering': 'no', // disable nginx buffering if present
+    'X-Accel-Buffering': 'no',
   });
-  // Initial heartbeat to flush headers.
   res.write(': open\n\n');
 
   let closed = false;
@@ -134,68 +221,26 @@ router.get('/api/agents/:id/chat/stream', async (req, res) => {
     }
   };
 
-  const onAgent = (payload) => {
-    // OpenClaw 'agent' events carry lifecycle/tool status. Shape varies; we
-    // surface the most useful pieces so the UI can render a "Thinking…" pill.
-    if (!payload) return;
-    if (payload.sessionKey && payload.sessionKey !== sessionKey) return;
-    if (payload.runId && payload.runId !== runId) return;
-    const label =
-      payload.status ||
-      payload.tool ||
-      payload.label ||
-      payload.message ||
-      payload.event ||
-      'working';
-    sendEvent('status', { label, raw: payload });
+  const onStatus = (evt) => {
+    if (evt.agentId !== agentId) return;
+    if (evt.runId && evt.runId !== runId) return;
+    const p = evt.payload || {};
+    const label = p.status || p.tool || p.label || p.message || p.event || 'working';
+    sendEvent('status', { label });
   };
 
-  const onMessage = (payload) => {
-    if (!payload) return;
-    if (payload.sessionKey && payload.sessionKey !== sessionKey) return;
-    if (payload.runId && payload.runId !== runId) return;
-
-    const msg = payload.message || payload;
-    const role = msg.role || payload.role;
-    if (role !== 'assistant') return;
-
-    // Final replies arrive as session.status === 'done'. Some intermediate
-    // assistant frames may also fire; only treat 'done' as terminal.
-    const done = (payload.session && payload.session.status === 'done') ||
-                 payload.done === true ||
-                 msg.status === 'done';
-    if (!done) return;
-
-    let text = '';
-    if (Array.isArray(msg.content)) {
-      // content: [{type:'text', text:'...'}, ...]
-      for (const part of msg.content) {
-        if (part && typeof part.text === 'string') text += part.text;
-      }
-    } else if (typeof msg.content === 'string') {
-      text = msg.content;
-    } else if (typeof msg.text === 'string') {
-      text = msg.text;
-    }
-    text = text.trim();
-    if (!text) return;
-
-    // Persist the assistant reply, then emit + close.
-    db.query(
-      `INSERT INTO chat_messages (agent_id, session_key, role, text, run_id, source)
-       VALUES ($1, $2, 'assistant', $3, $4, 'chat')`,
-      [agentId, sessionKey, text, runId]
-    ).catch((err) => console.error('[chat] persist assistant failed:', err.message));
-
-    sendEvent('reply', { text, runId });
+  const onReply = (evt) => {
+    if (evt.agentId !== agentId) return;
+    if (evt.runId && evt.runId !== runId) return;
+    sendEvent('reply', { text: evt.text, runId: evt.runId });
     cleanup();
   };
 
   const cleanup = () => {
     if (closed) return;
     closed = true;
-    client.off('agent', onAgent);
-    client.off('message', onMessage);
+    replyBus.off('status', onStatus);
+    replyBus.off('reply', onReply);
     clearTimeout(timeoutId);
     try { res.end(); } catch {}
   };
@@ -205,8 +250,8 @@ router.get('/api/agents/:id/chat/stream', async (req, res) => {
     cleanup();
   }, STREAM_TIMEOUT_MS);
 
-  client.on('agent', onAgent);
-  client.on('message', onMessage);
+  replyBus.on('status', onStatus);
+  replyBus.on('reply', onReply);
 
   req.on('close', cleanup);
 });
