@@ -212,13 +212,29 @@ class OpenClawClient extends EventEmitter {
   }
 
   _request(method, params) {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const id = uid();
       const timer = setTimeout(() => {
         this.pendingRequests.delete(id);
         reject(new Error(`Request ${method} timed out after ${REQUEST_TIMEOUT_MS}ms`));
       }, REQUEST_TIMEOUT_MS);
       this.pendingRequests.set(id, { resolve, reject, timer });
+
+      // Tolerate brief reconnect windows: if the socket isn't open right
+      // now, wait for the next 'connect' event before sending. Without this,
+      // a chat.send that races a transient gateway disconnect throws
+      // "WebSocket not open" immediately instead of riding through.
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        try {
+          if (!this.connecting && !this.connected) this.connect();
+          await this._waitForConnect();
+        } catch (err) {
+          clearTimeout(timer);
+          this.pendingRequests.delete(id);
+          return reject(err);
+        }
+      }
+
       try {
         this._send({ type: 'req', id, method, params });
       } catch (err) {
