@@ -83,7 +83,11 @@ class OpenClawClient extends EventEmitter {
             token: TOKEN,
             ...(DEVICE_TOKEN ? { deviceToken: DEVICE_TOKEN } : {}),
           },
-          scopes: ['operator.read', 'operator.write'],
+          // operator.admin is required for chat.inject (briefing). Loopback
+          // clients get all scopes by default on Railway (the wrapper binds
+          // the gateway to 127.0.0.1, which auto-grants admin); listing
+          // explicitly here is harmless if the gateway already grants more.
+          scopes: ['operator.read', 'operator.write', 'operator.admin'],
         },
       };
       this._send(frame);
