@@ -396,7 +396,15 @@ function requireSetupAuth(req, res, next) {
 
 const app = express();
 app.disable("x-powered-by");
-app.use(express.json({ limit: "1mb" }));
+// Parse JSON for wrapper's own routes, but NOT for /mc/* — those are proxied
+// downstream to Mission Control which has its own express.json(). Consuming
+// the body here would drain the stream before http-proxy can forward it,
+// causing every POST to /mc/* to hang with "request aborted".
+const jsonParser = express.json({ limit: "1mb" });
+app.use((req, res, next) => {
+  if (req.path === "/mc" || req.path.startsWith("/mc/")) return next();
+  return jsonParser(req, res, next);
+});
 
 // Minimal health endpoint for Railway.
 app.get("/setup/healthz", (_req, res) => res.json({ ok: true }));
