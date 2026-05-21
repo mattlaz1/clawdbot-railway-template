@@ -211,37 +211,44 @@ class OpenClawClient extends EventEmitter {
     this.ws.send(JSON.stringify(frame));
   }
 
-  _request(method, params) {
-    return new Promise(async (resolve, reject) => {
-      const id = uid();
+  async _request(method, params) {
+    // Wait for an open socket, then send. If _send still fails (race with
+    // an in-flight disconnect — the gateway sometimes closes the very first
+    // post-handshake connection at boot), wait for the next 'connect' and
+    // retry once. After that, propagate the error.
+    const id = uid();
+    return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingRequests.delete(id);
         reject(new Error(`Request ${method} timed out after ${REQUEST_TIMEOUT_MS}ms`));
       }, REQUEST_TIMEOUT_MS);
       this.pendingRequests.set(id, { resolve, reject, timer });
 
-      // Tolerate brief reconnect windows: if the socket isn't open right
-      // now, wait for the next 'connect' event before sending. Without this,
-      // a chat.send that races a transient gateway disconnect throws
-      // "WebSocket not open" immediately instead of riding through.
-      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-        try {
+      const sendOnce = async () => {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
           if (!this.connecting && !this.connected) this.connect();
           await this._waitForConnect();
-        } catch (err) {
-          clearTimeout(timer);
-          this.pendingRequests.delete(id);
-          return reject(err);
         }
-      }
-
-      try {
         this._send({ type: 'req', id, method, params });
-      } catch (err) {
+      };
+
+      sendOnce().catch(async (err) => {
+        if (String(err.message).includes('WebSocket not open')) {
+          // Wait for the reconnect cycle that already kicked off, then retry.
+          try {
+            await this._waitForConnect();
+            this._send({ type: 'req', id, method, params });
+            return;
+          } catch (err2) {
+            clearTimeout(timer);
+            this.pendingRequests.delete(id);
+            return reject(err2);
+          }
+        }
         clearTimeout(timer);
         this.pendingRequests.delete(id);
         reject(err);
-      }
+      });
     });
   }
 
