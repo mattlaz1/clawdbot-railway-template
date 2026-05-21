@@ -10,25 +10,48 @@ process.on("unhandledRejection", (err) => {
 });
 
 const app = express();
-const PORT = process.env.PORT || 3700;
+const PORT = process.env.MC_PORT || process.env.PORT || 3700;
 const IS_RAILWAY = !!process.env.RAILWAY_ENVIRONMENT;
+const MC_DATA_DIR = process.env.MC_DATA_DIR || path.join(__dirname, "data");
 const VAULT_ROOT = process.env.VAULT_ROOT || path.resolve(__dirname, "..", "..");
-const AGENT_BASE = path.join(VAULT_ROOT, "SkySuite", "agent");
-const EXECUTE_LOG_DIR = path.join(__dirname, "data", "execute-logs");
+const AGENT_BASE = process.env.AGENT_BASE || path.join(VAULT_ROOT, "SkySuite", "agent");
+const EXECUTE_LOG_DIR = process.env.MC_EXECUTE_LOG_DIR || path.join(MC_DATA_DIR, "execute-logs");
 
 app.use(express.json({ limit: "1mb" }));
 
-// Auth gate — mount before static/routes so the dashboard shell also requires
-// credentials. Webhook routes self-authenticate via HMAC and bypass this.
 const basicAuth = require("./middleware/auth");
 app.use(basicAuth);
 if (basicAuth.enabled) {
   console.log("[auth] Basic Auth enabled");
+} else if (process.env.MC_BEHIND_WRAPPER === "1") {
+  console.log("[auth] Deferring to wrapper (MC_BEHIND_WRAPPER=1)");
 } else {
   console.log("[auth] Basic Auth DISABLED — set BASIC_AUTH_USER + BASIC_AUTH_PASS to enable");
 }
 
+// When the wrapper proxies us under /mc, it sets X-Forwarded-Prefix=/mc.
+// Rewrite the <base href> in index.html so all relative URLs in the SPA
+// (assets + fetch("api/...")) resolve to the right place.
+function getBasePath(req) {
+  const prefix = (req.headers["x-forwarded-prefix"] || process.env.MC_BASE_PATH || "").replace(/\/+$/, "");
+  return prefix ? `${prefix}/` : "/";
+}
+function serveIndex(req, res) {
+  const indexPath = path.join(__dirname, "public", "index.html");
+  let html;
+  try { html = fs.readFileSync(indexPath, "utf8"); } catch (err) {
+    return res.status(500).send("index.html missing");
+  }
+  const base = getBasePath(req);
+  html = html.replace(/<base href="[^"]*"([^>]*)>/, `<base href="${base}"$1>`);
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(html);
+}
+app.get("/", serveIndex);
+
 app.use(express.static(path.join(__dirname, "public"), {
+  index: false,
   setHeaders: (res, filePath) => {
     if (filePath.endsWith(".js") || filePath.endsWith(".css") || filePath.endsWith(".html")) {
       res.setHeader("Cache-Control", "no-store");
@@ -36,10 +59,8 @@ app.use(express.static(path.join(__dirname, "public"), {
   },
 }));
 
-if (!IS_RAILWAY) {
-  fs.mkdirSync(path.join(__dirname, "data"), { recursive: true });
-  fs.mkdirSync(EXECUTE_LOG_DIR, { recursive: true });
-}
+fs.mkdirSync(MC_DATA_DIR, { recursive: true });
+fs.mkdirSync(EXECUTE_LOG_DIR, { recursive: true });
 
 // Phase 1: read-only Postgres browser (see db/README.md)
 app.use("/api/db", require("./routes/db"));
@@ -1284,7 +1305,10 @@ app.get("/api/execute/:runId/status", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Mission Control running at http://localhost:${PORT}`);
+const BIND_HOST = IS_RAILWAY ? "127.0.0.1" : "0.0.0.0";
+app.listen(PORT, BIND_HOST, () => {
+  console.log(`Mission Control running at http://${BIND_HOST}:${PORT}`);
   console.log(`Vault root: ${VAULT_ROOT}`);
+  console.log(`Agent base: ${AGENT_BASE}`);
+  console.log(`Data dir: ${MC_DATA_DIR}`);
 });
