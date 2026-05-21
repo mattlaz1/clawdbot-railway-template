@@ -723,8 +723,9 @@ body.app-sidebar-collapsed main {
   overflow-y: auto;
 }
 .chat-area:empty,
-.chat-area[hidden] {
-  display: none;
+.chat-area[hidden],
+.task-section[hidden] {
+  display: none !important;
 }
 .chat-area .chat-log {
   margin-top: 0;
