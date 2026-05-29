@@ -193,6 +193,16 @@ function isConfigured() {
 let gatewayProc = null;
 let gatewayStarting = null;
 
+// One persistent postgres-mcp SSE server, shared by all agent sessions.
+// Previously postgres-mcp was registered as a `command` (stdio) server, which
+// made OpenClaw spawn a fresh postgres-mcp child per session/run and never reap
+// them — they accumulated (observed 48 leaked procs over ~8d, OOM pressure, and
+// agent auth-refresh timeouts as a downstream symptom). Running it once as an
+// SSE server and having OpenClaw connect by URL means exactly one process ever.
+let pgMcpProc = null;
+const PG_MCP_HOST = "127.0.0.1";
+const PG_MCP_PORT = Number.parseInt(process.env.PG_MCP_SSE_PORT ?? "8000", 10);
+
 // Debug breadcrumbs for common Railway failures (502 / "Application failed to respond").
 let lastGatewayError = null;
 let lastGatewayExit = null;
@@ -292,21 +302,23 @@ async function ensureMcpServers() {
     return;
   }
 
-  // Check whether postgres is already registered.
-  const listRes = childProcess.spawnSync(OPENCLAW_NODE, clawArgs(["mcp", "list"]), {
-    encoding: "utf8",
-    env: { ...process.env, OPENCLAW_STATE_DIR: STATE_DIR, OPENCLAW_WORKSPACE_DIR: WORKSPACE_DIR },
-  });
-  if (listRes.stdout && listRes.stdout.includes("postgres")) {
-    console.log("[wrapper] postgres-mcp already registered with OpenClaw");
-    return;
-  }
+  // Start the single shared postgres-mcp SSE server (idempotent — see startPgMcp).
+  startPgMcp(dbUrl);
 
+  // Register postgres as a URL/SSE server so OpenClaw CONNECTS to the shared
+  // process instead of spawning a stdio child per session. The DB connection,
+  // credentials, and access-mode are unchanged — only the transport differs.
+  const sseUrl = `http://${PG_MCP_HOST}:${PG_MCP_PORT}/sse`;
   const serverDef = JSON.stringify({
-    command: "postgres-mcp",
-    args: ["--access-mode=unrestricted"],
-    env: { DATABASE_URI: dbUrl },
+    url: sseUrl,
+    transport: "sse",
   });
+
+  // Re-register unconditionally so a pre-existing stale `command` (stdio) entry
+  // from before this fix gets converted to the URL entry. `mcp set` overwrites
+  // an existing entry by default (verified against openclaw 2026.5.18), so no
+  // force flag is needed — and there is none. The old stdio definition is what
+  // caused the per-session spawn leak; overwriting it in place stops the leak.
   const setRes = childProcess.spawnSync(
     OPENCLAW_NODE,
     clawArgs(["mcp", "set", "postgres", serverDef]),
@@ -316,10 +328,46 @@ async function ensureMcpServers() {
     }
   );
   if (setRes.status === 0) {
-    console.log("[wrapper] registered postgres-mcp with OpenClaw");
+    console.log(`[wrapper] registered postgres-mcp as shared SSE server at ${sseUrl}`);
   } else {
     console.warn(`[wrapper] failed to register postgres-mcp: ${setRes.stderr || setRes.stdout}`);
   }
+}
+
+// Launch (or re-launch) the single shared postgres-mcp SSE server. Supervised
+// like the gateway: on unexpected exit we clear the handle and respawn on the
+// next ensureMcpServers()/ensureGatewayRunning() cycle. Idempotent — a no-op if
+// already running this process.
+function startPgMcp(dbUrl) {
+  if (pgMcpProc) return;
+  pgMcpProc = childProcess.spawn(
+    "postgres-mcp",
+    [
+      "--access-mode=unrestricted",
+      "--transport",
+      "sse",
+      "--sse-host",
+      PG_MCP_HOST,
+      "--sse-port",
+      String(PG_MCP_PORT),
+    ],
+    {
+      stdio: "inherit",
+      env: { ...process.env, DATABASE_URI: dbUrl },
+    }
+  );
+
+  console.log(`[wrapper] starting shared postgres-mcp SSE server on ${PG_MCP_HOST}:${PG_MCP_PORT}`);
+
+  pgMcpProc.on("error", (err) => {
+    console.error(`[wrapper] postgres-mcp spawn error: ${String(err)}`);
+    pgMcpProc = null;
+  });
+
+  pgMcpProc.on("exit", (code, signal) => {
+    console.error(`[wrapper] postgres-mcp exited code=${code} signal=${signal}`);
+    pgMcpProc = null;
+  });
 }
 
 async function startGateway() {
