@@ -86,23 +86,16 @@ function isDoneAssistantPayload(payload) {
 (function initSink() {
   const client = getClient();
 
-  client.on('agent', (payload) => {
-    if (!payload) return;
-    const agentId = agentIdFromSessionKey(payload.sessionKey);
-    if (!agentId || !KNOWN_AGENTS.has(agentId)) return;
-    replyBus.emit('status', { agentId, runId: payload.runId, payload });
-  });
-
-  client.on('message', async (payload) => {
-    if (!isDoneAssistantPayload(payload)) return;
-    const agentId = agentIdFromSessionKey(payload.sessionKey);
-    if (!agentId || !KNOWN_AGENTS.has(agentId)) return;
-    const text = extractReplyText(payload);
-    if (!text) return;
-    const runId = payload.runId || payload.message?.runId || null;
-
-    // Persist first — single source of truth. If a tab is open, the SSE
-    // handler will forward this via replyBus.emit('reply', ...) below.
+  // Persist a reply once and fan it out to any open SSE stream. Deduped by
+  // runId so a reply that happens to arrive on more than one event channel is
+  // never written twice.
+  const persistedRuns = new Set();
+  async function persistAssistant(agentId, runId, text) {
+    if (runId && persistedRuns.has(runId)) return;
+    if (runId) {
+      persistedRuns.add(runId);
+      if (persistedRuns.size > 500) persistedRuns.clear();
+    }
     try {
       await db.query(
         `INSERT INTO chat_messages (agent_id, session_key, role, text, run_id, source)
@@ -112,8 +105,42 @@ function isDoneAssistantPayload(payload) {
     } catch (err) {
       console.error('[chat/sink] persist assistant failed:', err.message);
     }
-
     replyBus.emit('reply', { agentId, runId, text });
+  }
+
+  client.on('agent', (payload) => {
+    if (!payload) return;
+    const agentId = agentIdFromSessionKey(payload.sessionKey);
+    if (!agentId || !KNOWN_AGENTS.has(agentId)) return;
+    replyBus.emit('status', { agentId, runId: payload.runId, payload });
+  });
+
+  // PRIMARY reply path. OpenClaw 2026.5.18 delivers the assistant's visible
+  // reply as a `chat` event: state='delta' streaming chunks followed by one
+  // state='final' frame carrying the full message. We persist on 'final' only.
+  // (`session.message` here only echoes the user turn — verified by loopback
+  // frame capture against the live gateway.)
+  client.on('chat', (payload) => {
+    if (!payload || payload.state !== 'final') return;
+    const msg = payload.message || payload;
+    if ((msg.role || payload.role) !== 'assistant') return;
+    const agentId = agentIdFromSessionKey(payload.sessionKey);
+    if (!agentId || !KNOWN_AGENTS.has(agentId)) return;
+    const text = extractReplyText(payload);
+    if (!text) return;
+    persistAssistant(agentId, payload.runId || null, text);
+  });
+
+  // Fallback reply path: some builds emit the assistant reply as a
+  // session.message 'done' event. Capture it too (deduped by runId).
+  client.on('message', (payload) => {
+    if (!isDoneAssistantPayload(payload)) return;
+    const agentId = agentIdFromSessionKey(payload.sessionKey);
+    if (!agentId || !KNOWN_AGENTS.has(agentId)) return;
+    const text = extractReplyText(payload);
+    if (!text) return;
+    const runId = payload.runId || payload.message?.runId || null;
+    persistAssistant(agentId, runId, text);
   });
 })();
 

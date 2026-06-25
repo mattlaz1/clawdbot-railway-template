@@ -282,6 +282,11 @@ class OpenClawClient extends EventEmitter {
       this.emit('agent', f.payload);
     } else if (f.event === 'session.message') {
       this.emit('message', f.payload);
+    } else if (f.event === 'chat') {
+      // The assistant's visible reply streams here: state='delta' chunks then a
+      // single state='final' frame carrying the full message. `session.message`
+      // only echoes the user turn, so this is the real reply channel.
+      this.emit('chat', f.payload);
     }
     // Ignored: health, tick, connect.challenge, presence, etc.
   }
